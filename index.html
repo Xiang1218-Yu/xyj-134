@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>核爆模拟器 - Nuclear Explosion Simulator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">☢</span>
+                <h1>核爆模拟器</h1>
+            </div>
+            <p class="subtitle">科学可视化 · 核爆范围与爆炸过程模拟</p>
+        </header>
+
+        <div class="main-content">
+            <aside class="control-panel">
+                <section class="panel-section">
+                    <h2>爆炸参数</h2>
+                    
+                    <div class="form-group">
+                        <label>核弹类型</label>
+                        <select id="bombType">
+                            <option value="custom">自定义</option>
+                            <option value="little_boy">小男孩（广岛，15 千吨）</option>
+                            <option value="fat_man">胖子（长崎，21 千吨）</option>
+                            <option value="tsar_bomba">沙皇炸弹（50,000 千吨）</option>
+                            <option value="b83">B83 核弹（1,200 千吨）</option>
+                            <option value="w88">W88 核弹头（475 千吨）</option>
+                            <option value="trinity">三位一体（20 千吨）</option>
+                            <option value="castle_bravo">喝彩城堡（15,000 千吨）</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>爆炸当量 (千吨 TNT)</label>
+                        <input type="range" id="yieldSlider" min="1" max="50000" value="15000">
+                        <div class="slider-value"><span id="yieldValue">15,000</span> 千吨</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>爆炸高度 (米)</label>
+                        <select id="burstHeight">
+                            <option value="0">地面爆炸</option>
+                            <option value="500">低空爆炸 (500m)</option>
+                            <option value="1000" selected>中空爆炸 (1000m)</option>
+                            <option value="2000">高空爆炸 (2000m)</option>
+                            <option value="5000">超高空爆炸 (5000m)</option>
+                        </select>
+                    </div>
+                </section>
+
+                <section class="panel-section">
+                    <h2>地图设置</h2>
+                    <div class="form-group">
+                        <label>地图比例尺 (像素/公里)</label>
+                        <input type="range" id="scaleSlider" min="5" max="50" value="20">
+                        <div class="slider-value"><span id="scaleValue">20</span> 像素/公里</div>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="showLabels" checked>
+                        <label for="showLabels">显示圈层标签</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="showLegend" checked>
+                        <label for="showLegend">显示图例</label>
+                    </div>
+                </section>
+
+                <section class="panel-section action-section">
+                    <button id="detonateBtn" class="detonate-btn">
+                        <span class="btn-icon">💥</span>
+                        引爆核弹
+                    </button>
+                    <button id="resetBtn" class="reset-btn">
+                        <span class="btn-icon">↺</span>
+                        重置
+                    </button>
+                </section>
+
+                <section class="panel-section">
+                    <h2>使用说明</h2>
+                    <ul class="instructions">
+                        <li>点击地图任意位置设置爆炸中心</li>
+                        <li>选择核弹类型或手动调整当量</li>
+                        <li>点击「引爆核弹」观看爆炸过程</li>
+                        <li>数据仅供科普参考</li>
+                    </ul>
+                </section>
+            </aside>
+
+            <main class="map-container">
+                <div class="map-wrapper" id="mapWrapper">
+                    <canvas id="mapCanvas"></canvas>
+                    <canvas id="effectCanvas"></canvas>
+                    <div id="flashOverlay" class="flash-overlay"></div>
+                    <div class="map-hint" id="mapHint">
+                        👆 点击地图选择爆炸位置
+                    </div>
+                </div>
+
+                <div class="legend" id="legend">
+                    <h3>破坏圈层图例</h3>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <span class="legend-color fireball"></span>
+                            <div class="legend-text">
+                                <strong>火球 (Fireball)</strong>
+                                <span>一切瞬间汽化</span>
+                            </div>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color radiation"></span>
+                            <div class="legend-text">
+                                <strong>致命辐射</strong>
+                                <span>500 雷姆以上，数日内死亡</span>
+                            </div>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color severe"></span>
+                            <div class="legend-text">
+                                <strong>严重破坏区</strong>
+                                <span>建筑物全毁，人员必死</span>
+                            </div>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color moderate"></span>
+                            <div class="legend-text">
+                                <strong>中度破坏区</strong>
+                                <span>房屋倒塌，严重伤亡</span>
+                            </div>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color light"></span>
+                            <div class="legend-text">
+                                <strong>轻度破坏区</strong>
+                                <span>玻璃破碎，轻伤</span>
+                            </div>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color thermal"></span>
+                            <div class="legend-text">
+                                <strong>热辐射区</strong>
+                                <span>三度烧伤，引燃可燃物</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="data-panels">
+                    <div class="data-card">
+                        <h4>火球半径</h4>
+                        <div class="data-value"><span id="fireballRadius">0</span> <span class="unit">公里</span></div>
+                        <div class="data-desc">直径约 <span id="fireballDiameter">0</span> 公里</div>
+                    </div>
+                    <div class="data-card">
+                        <h4>致命辐射</h4>
+                        <div class="data-value"><span id="radiationRadius">0</span> <span class="unit">公里</span></div>
+                        <div class="data-desc">500 rad 剂量范围</div>
+                    </div>
+                    <div class="data-card">
+                        <h4>严重破坏</h4>
+                        <div class="data-value"><span id="severeRadius">0</span> <span class="unit">公里</span></div>
+                        <div class="data-desc">20 psi 超压</div>
+                    </div>
+                    <div class="data-card">
+                        <h4>中度破坏</h4>
+                        <div class="data-value"><span id="moderateRadius">0</span> <span class="unit">公里</span></div>
+                        <div class="data-desc">5 psi 超压</div>
+                    </div>
+                    <div class="data-card">
+                        <h4>轻度破坏</h4>
+                        <div class="data-value"><span id="lightRadius">0</span> <span class="unit">公里</span></div>
+                        <div class="data-desc">1 psi 超压</div>
+                    </div>
+                    <div class="data-card">
+                        <h4>热辐射范围</h4>
+                        <div class="data-value"><span id="thermalRadius">0</span> <span class="unit">公里</span></div>
+                        <div class="data-desc">三度烧伤阈值</div>
+                    </div>
+                </div>
+
+                <div class="casualty-panel" id="casualtyPanel">
+                    <h3>📊 影响预估</h3>
+                    <div class="casualty-grid">
+                        <div class="casualty-item">
+                            <span class="casualty-icon">💀</span>
+                            <div>
+                                <div class="casualty-label">预估死亡人数</div>
+                                <div class="casualty-value" id="estimatedDeaths">0</div>
+                            </div>
+                        </div>
+                        <div class="casualty-item">
+                            <span class="casualty-icon">🩹</span>
+                            <div>
+                                <div class="casualty-label">预估受伤人数</div>
+                                <div class="casualty-value" id="estimatedInjured">0</div>
+                            </div>
+                        </div>
+                        <div class="casualty-item">
+                            <span class="casualty-icon">🏙️</span>
+                            <div>
+                                <div class="casualty-label">影响区域面积</div>
+                                <div class="casualty-value"><span id="affectedArea">0</span> km²</div>
+                            </div>
+                        </div>
+                        <div class="casualty-item">
+                            <span class="casualty-icon">⚡</span>
+                            <div>
+                                <div class="casualty-label">释放能量</div>
+                                <div class="casualty-value"><span id="energyReleased">0</span> TJ</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <footer class="footer">
+            <p>⚠️ 本工具仅供科学科普与教育用途，数据基于公开物理模型估算</p>
+            <p>反对核武器扩散 · 珍爱和平</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
