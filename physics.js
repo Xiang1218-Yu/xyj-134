@@ -669,15 +669,409 @@
         return baseRadiusPx * result.attenuation;
     }
 
+    const ROAD_BASE_CAPACITY = 2000;
+    const VEHICLE_SPEED_KMH = 60;
+    const PEOPLE_PER_VEHICLE = 3;
+
+    function buildEvacuationGraph(cities, shelters, roads, capacityMultiplier) {
+        const capMult = capacityMultiplier !== undefined ? capacityMultiplier : 1;
+        const nodes = [];
+        const nodeMap = {};
+        let nodeId = 0;
+
+        cities.forEach(function (city, idx) {
+            const node = {
+                id: nodeId,
+                type: 'city',
+                ref: city,
+                refIndex: idx,
+                x: city.x,
+                y: city.y,
+                population: city.population,
+                edges: []
+            };
+            nodes.push(node);
+            nodeMap['city_' + idx] = nodeId;
+            nodeId++;
+        });
+
+        shelters.forEach(function (shelter, idx) {
+            const node = {
+                id: nodeId,
+                type: 'shelter',
+                ref: shelter,
+                refIndex: idx,
+                x: shelter.x,
+                y: shelter.y,
+                capacity: shelter.capacity,
+                edges: []
+            };
+            nodes.push(node);
+            nodeMap['shelter_' + idx] = nodeId;
+            nodeId++;
+        });
+
+        roads.forEach(function (road) {
+            const dx = road.x2 - road.x1;
+            const dy = road.y2 - road.y1;
+            const lengthPx = Math.sqrt(dx * dx + dy * dy);
+
+            let node1Id = null, node2Id = null;
+            nodes.forEach(function (node) {
+                const d1 = Math.sqrt(Math.pow(node.x - road.x1, 2) + Math.pow(node.y - road.y1, 2));
+                const d2 = Math.sqrt(Math.pow(node.x - road.x2, 2) + Math.pow(node.y - road.y2, 2));
+                if (d1 < 30) node1Id = node.id;
+                if (d2 < 30) node2Id = node.id;
+            });
+
+            if (node1Id !== null && node2Id !== null) {
+                const capacity = (road.capacity || ROAD_BASE_CAPACITY) * capMult;
+                const lanes = road.lanes || 2;
+                const edge1 = {
+                    from: node1Id,
+                    to: node2Id,
+                    lengthPx: lengthPx,
+                    capacity: capacity * lanes,
+                    lanes: lanes,
+                    flow: 0,
+                    density: 0
+                };
+                const edge2 = {
+                    from: node2Id,
+                    to: node1Id,
+                    lengthPx: lengthPx,
+                    capacity: capacity * lanes,
+                    lanes: lanes,
+                    flow: 0,
+                    density: 0
+                };
+                nodes[node1Id].edges.push(edge1);
+                nodes[node2Id].edges.push(edge2);
+            }
+        });
+
+        nodes.forEach(function (node, i) {
+            nodes.forEach(function (other, j) {
+                if (i === j) return;
+                if (node.type !== 'city' || other.type !== 'city') return;
+
+                const dx = other.x - node.x;
+                const dy = other.y - node.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                let hasEdge = false;
+                node.edges.forEach(function (e) {
+                    if (e.to === other.id) hasEdge = true;
+                });
+
+                if (!hasEdge && dist < 200) {
+                    const capacity = ROAD_BASE_CAPACITY * 1.5 * capMult;
+                    node.edges.push({
+                        from: node.id,
+                        to: other.id,
+                        lengthPx: dist,
+                        capacity: capacity,
+                        lanes: 2,
+                        flow: 0,
+                        density: 0
+                    });
+                }
+            });
+        });
+
+        return { nodes: nodes, nodeMap: nodeMap };
+    }
+
+    function dijkstra(graph, sourceId) {
+        const dist = {};
+        const prev = {};
+        const visited = {};
+        const nodes = graph.nodes;
+
+        nodes.forEach(function (node) {
+            dist[node.id] = Infinity;
+            prev[node.id] = null;
+            visited[node.id] = false;
+        });
+        dist[sourceId] = 0;
+
+        while (true) {
+            let minDist = Infinity;
+            let currentId = null;
+
+            nodes.forEach(function (node) {
+                if (!visited[node.id] && dist[node.id] < minDist) {
+                    minDist = dist[node.id];
+                    currentId = node.id;
+                }
+            });
+
+            if (currentId === null) break;
+            visited[currentId] = true;
+
+            const currentNode = nodes[currentId];
+            currentNode.edges.forEach(function (edge) {
+                if (visited[edge.to]) return;
+                const alt = dist[currentId] + edge.lengthPx;
+                if (alt < dist[edge.to]) {
+                    dist[edge.to] = alt;
+                    prev[edge.to] = { from: currentId, edge: edge };
+                }
+            });
+        }
+
+        return { dist: dist, prev: prev };
+    }
+
+    function findNearestShelter(graph, cityNodeId) {
+        const nodes = graph.nodes;
+        let nearestShelterId = null;
+        let minDist = Infinity;
+        let shortestPath = null;
+
+        nodes.forEach(function (node) {
+            if (node.type !== 'shelter') return;
+
+            const result = dijkstra(graph, cityNodeId);
+            const dist = result.dist[node.id];
+
+            if (dist < minDist) {
+                minDist = dist;
+                nearestShelterId = node.id;
+
+                const path = [];
+                let curr = node.id;
+                while (result.prev[curr]) {
+                    path.unshift(result.prev[curr].edge);
+                    curr = result.prev[curr].from;
+                }
+                shortestPath = path;
+            }
+        });
+
+        return {
+            shelterId: nearestShelterId,
+            distancePx: minDist,
+            path: shortestPath
+        };
+    }
+
+    function calculateEvacuationPlan(cities, shelters, roads, scale, warningTimeMinutes, roadCapacityMultiplier, vehicleSpeedKmh) {
+        const capMult = roadCapacityMultiplier !== undefined ? roadCapacityMultiplier : 1;
+        const vehSpeed = vehicleSpeedKmh !== undefined ? vehicleSpeedKmh : VEHICLE_SPEED_KMH;
+
+        const graph = buildEvacuationGraph(cities, shelters, roads, capMult);
+        const nodes = graph.nodes;
+        const roadUsage = {};
+        const cityPlans = [];
+        let totalPopulation = 0;
+        let totalEvacuated = 0;
+        let totalStranded = 0;
+
+        const warningTimeHours = warningTimeMinutes / 60;
+
+        cities.forEach(function (city, cityIdx) {
+            const cityNodeId = graph.nodeMap['city_' + cityIdx];
+            const cityNode = nodes[cityNodeId];
+            totalPopulation += city.population;
+
+            const nearest = findNearestShelter(graph, cityNodeId);
+
+            if (!nearest.path || nearest.path.length === 0) {
+                cityPlans.push({
+                    cityIndex: cityIdx,
+                    population: city.population,
+                    shelterId: null,
+                    distanceKm: 0,
+                    path: [],
+                    evacuated: 0,
+                    stranded: city.population,
+                    travelTimeHours: Infinity
+                });
+                totalStranded += city.population;
+                return;
+            }
+
+            let totalLengthPx = 0;
+            nearest.path.forEach(function (edge) {
+                totalLengthPx += edge.lengthPx;
+            });
+            const distanceKm = totalLengthPx / scale;
+            const travelTimeHours = distanceKm / vehSpeed;
+
+            const canEvacuate = travelTimeHours <= warningTimeHours;
+
+            let roadCapacityFactor = 1;
+            let minCapacityRatio = 1;
+            nearest.path.forEach(function (edge) {
+                const capacityPerHour = edge.capacity * PEOPLE_PER_VEHICLE;
+                const requiredFlow = city.population / travelTimeHours;
+                const ratio = capacityPerHour / requiredFlow;
+                if (ratio < minCapacityRatio) minCapacityRatio = ratio;
+            });
+            roadCapacityFactor = Math.min(1, minCapacityRatio);
+
+            let evacuated;
+            if (canEvacuate) {
+                evacuated = Math.floor(city.population * Math.min(1, roadCapacityFactor * 0.8));
+            } else {
+                const timeRatio = warningTimeHours / travelTimeHours;
+                evacuated = Math.floor(city.population * timeRatio * Math.min(1, roadCapacityFactor * 0.8));
+            }
+            const stranded = city.population - evacuated;
+
+            nearest.path.forEach(function (edge) {
+                const key = edge.from + '_' + edge.to;
+                const reverseKey = edge.to + '_' + edge.from;
+                if (!roadUsage[key]) {
+                    roadUsage[key] = {
+                        edge: edge,
+                        totalFlow: 0,
+                        density: 0
+                    };
+                }
+                roadUsage[key].totalFlow += evacuated;
+                roadUsage[key].density = roadUsage[key].totalFlow / (edge.capacity * PEOPLE_PER_VEHICLE);
+
+                if (roadUsage[reverseKey]) {
+                    roadUsage[key].density += roadUsage[reverseKey].totalFlow / (edge.capacity * PEOPLE_PER_VEHICLE) * 0.3;
+                }
+            });
+
+            totalEvacuated += evacuated;
+            totalStranded += stranded;
+
+            cityPlans.push({
+                cityIndex: cityIdx,
+                population: city.population,
+                shelterId: nearest.shelterId,
+                distanceKm: distanceKm,
+                path: nearest.path,
+                evacuated: evacuated,
+                stranded: stranded,
+                travelTimeHours: travelTimeHours,
+                canEvacuate: canEvacuate
+            });
+        });
+
+        const roadDensities = [];
+        Object.keys(roadUsage).forEach(function (key) {
+            const usage = roadUsage[key];
+            roadDensities.push({
+                edge: usage.edge,
+                density: Math.min(2, usage.density),
+                flow: usage.totalFlow
+            });
+        });
+
+        return {
+            graph: graph,
+            cityPlans: cityPlans,
+            roadDensities: roadDensities,
+            totalPopulation: totalPopulation,
+            totalEvacuated: totalEvacuated,
+            totalStranded: totalStranded,
+            evacuationRate: totalPopulation > 0 ? totalEvacuated / totalPopulation : 0,
+            strandedRate: totalPopulation > 0 ? totalStranded / totalPopulation : 0
+        };
+    }
+
+    function generateShelters(width, height, count) {
+        const shelters = [];
+        const n = count || 3;
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        for (let i = 0; i < n; i++) {
+            const angle = (i / n) * Math.PI * 2 + Math.PI / 6;
+            const dist = Math.min(width, height) * (0.35 + Math.random() * 0.1);
+            const x = centerX + Math.cos(angle) * dist;
+            const y = centerY + Math.sin(angle) * dist;
+
+            shelters.push({
+                id: i,
+                x: Math.max(50, Math.min(width - 50, x)),
+                y: Math.max(50, Math.min(height - 50, y)),
+                capacity: 500000 + Math.floor(Math.random() * 500000),
+                name: '避难所 #' + (i + 1)
+            });
+        }
+
+        return shelters;
+    }
+
+    function generateRoadNetwork(width, height, cities, shelters) {
+        const roads = [];
+        const allNodes = [];
+
+        cities.forEach(function (city, i) {
+            allNodes.push({ x: city.x, y: city.y, type: 'city', index: i });
+        });
+
+        shelters.forEach(function (shelter, i) {
+            allNodes.push({ x: shelter.x, y: shelter.y, type: 'shelter', index: i });
+        });
+
+        for (let i = 0; i < allNodes.length; i++) {
+            const distances = [];
+            for (let j = 0; j < allNodes.length; j++) {
+                if (i === j) continue;
+                const dx = allNodes[j].x - allNodes[i].x;
+                const dy = allNodes[j].y - allNodes[i].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                distances.push({ index: j, dist: dist });
+            }
+            distances.sort(function (a, b) { return a.dist - b.dist; });
+
+            const connectCount = allNodes[i].type === 'shelter' ? 4 : 2;
+            for (let k = 0; k < Math.min(connectCount, distances.length); k++) {
+                const j = distances[k].index;
+                if (j <= i) continue;
+
+                let exists = false;
+                roads.forEach(function (r) {
+                    if ((r.x1 === allNodes[i].x && r.y1 === allNodes[i].y && r.x2 === allNodes[j].x && r.y2 === allNodes[j].y) ||
+                        (r.x2 === allNodes[i].x && r.y2 === allNodes[i].y && r.x1 === allNodes[j].x && r.y1 === allNodes[j].y)) {
+                        exists = true;
+                    }
+                });
+
+                if (!exists) {
+                    const isShelterRoad = allNodes[i].type === 'shelter' || allNodes[j].type === 'shelter';
+                    roads.push({
+                        x1: allNodes[i].x,
+                        y1: allNodes[i].y,
+                        x2: allNodes[j].x,
+                        y2: allNodes[j].y,
+                        capacity: isShelterRoad ? ROAD_BASE_CAPACITY * 2 : ROAD_BASE_CAPACITY,
+                        lanes: isShelterRoad ? 4 : 2,
+                        isShelterAccess: isShelterRoad
+                    });
+                }
+            }
+        }
+
+        return roads;
+    }
+
     global.Physics = {
         BOMB_TYPES: BOMB_TYPES,
         ZONE_PRIORITY: ZONE_PRIORITY,
         TERRAIN_FEATURE_TYPES: TERRAIN_FEATURE_TYPES,
         TERRAIN_PRESETS: TERRAIN_PRESETS,
         ZONE_ALTITUDE_SENSITIVITY: ZONE_ALTITUDE_SENSITIVITY,
+        ROAD_BASE_CAPACITY: ROAD_BASE_CAPACITY,
+        VEHICLE_SPEED_KMH: VEHICLE_SPEED_KMH,
+        PEOPLE_PER_VEHICLE: PEOPLE_PER_VEHICLE,
         calculateRadii: calculateRadii,
         generateCities: generateCities,
         generateRoads: generateRoads,
+        generateRoadNetwork: generateRoadNetwork,
+        generateShelters: generateShelters,
+        buildEvacuationGraph: buildEvacuationGraph,
+        dijkstra: dijkstra,
+        findNearestShelter: findNearestShelter,
+        calculateEvacuationPlan: calculateEvacuationPlan,
         generateTerrainFeatures: generateTerrainFeatures,
         getElevationAt: getElevationAt,
         calculatePathAttenuation: calculatePathAttenuation,

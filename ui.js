@@ -12,7 +12,13 @@
         'statExplosionCount', 'statCombinedArea', 'statTotalArea', 'statOverlapArea',
         'terrainEnabled', 'terrainPreset', 'terrainIntensity', 'terrainIntensityValue',
         'showTerrainHeatmap', 'showTerrainContours', 'regenerateTerrainBtn',
-        'mountainCount', 'hillCount', 'basinCount', 'maxElevation'
+        'mountainCount', 'hillCount', 'basinCount', 'maxElevation',
+        'evacuationEnabled', 'shelterCount', 'warningTimeSlider', 'warningTimeValue',
+        'roadCapacity', 'vehicleSpeed', 'recalcEvacBtn', 'addShelterBtn',
+        'evacStartBtn', 'evacPauseBtn', 'evacResetBtn', 'evacSpeed',
+        'evacTotalPop', 'evacEvacuated', 'evacStranded', 'evacRate',
+        'evacProgress', 'evacProgressFill', 'evacTime', 'evacWarningTime',
+        'evacModeBadge', 'evacuationPanel'
     ];
 
     function getControlElements() {
@@ -352,6 +358,253 @@
         global.DataDisplay.updateDataDisplay(dataElements, state);
     }
 
+    function recalculateEvacuation(state, elements, mapCtx, mapWrapper) {
+        if (!state.evacuationEnabled || !state.shelters || state.shelters.length === 0) {
+            state.evacuationPlan = null;
+            return;
+        }
+
+        const roads = global.Physics.generateRoadNetwork(
+            mapWrapper.clientWidth,
+            mapWrapper.clientHeight,
+            state.cities,
+            state.shelters
+        );
+        state.evacuationRoads = roads;
+
+        const capacityMultiplier = parseFloat(elements.roadCapacity ? elements.roadCapacity.value : 1);
+        const adjustedRoads = roads.map(function (road) {
+            return {
+                ...road,
+                capacity: road.capacity * capacityMultiplier
+            };
+        });
+
+        const warningTime = parseInt(elements.warningTimeSlider ? elements.warningTimeSlider.value : 30, 10);
+
+        const originalSpeed = global.Physics.VEHICLE_SPEED_KMH;
+        const customSpeed = parseInt(elements.vehicleSpeed ? elements.vehicleSpeed.value : 60, 10);
+        global.Physics.VEHICLE_SPEED_KMH = customSpeed;
+
+        state.evacuationPlan = global.Physics.calculateEvacuationPlan(
+            state.cities,
+            state.shelters,
+            adjustedRoads,
+            state.scale,
+            warningTime
+        );
+
+        global.Physics.VEHICLE_SPEED_KMH = originalSpeed;
+
+        updateEvacuationDisplay(state, elements);
+    }
+
+    function updateEvacuationDisplay(state, elements) {
+        const plan = state.evacuationPlan;
+        if (!plan) {
+            if (elements.evacTotalPop) elements.evacTotalPop.textContent = '0';
+            if (elements.evacEvacuated) elements.evacEvacuated.textContent = '0';
+            if (elements.evacStranded) elements.evacStranded.textContent = '0';
+            if (elements.evacRate) elements.evacRate.textContent = '0%';
+            if (elements.evacProgress) elements.evacProgress.textContent = '0%';
+            if (elements.evacProgressFill) elements.evacProgressFill.style.width = '0%';
+            if (elements.evacTime) elements.evacTime.textContent = '0.0 小时';
+            return;
+        }
+
+        if (elements.evacTotalPop) {
+            elements.evacTotalPop.textContent = formatNumberShort(plan.totalPopulation);
+        }
+        if (elements.evacEvacuated) {
+            elements.evacEvacuated.textContent = formatNumberShort(plan.totalEvacuated);
+        }
+        if (elements.evacStranded) {
+            elements.evacStranded.textContent = formatNumberShort(plan.totalStranded);
+        }
+        if (elements.evacRate) {
+            const rate = plan.evacuationRate * 100;
+            if (rate < 0.1) {
+                elements.evacRate.textContent = '<0.1%';
+            } else if (rate < 1) {
+                elements.evacRate.textContent = rate.toFixed(1) + '%';
+            } else {
+                elements.evacRate.textContent = Math.round(rate) + '%';
+            }
+        }
+
+        const warningTime = parseInt(elements.warningTimeSlider ? elements.warningTimeSlider.value : 30, 10);
+        if (elements.evacWarningTime) {
+            elements.evacWarningTime.textContent = warningTime + ' 分钟';
+        }
+    }
+
+    function formatNumberShort(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return Math.round(num).toString();
+    }
+
+    function findNearestShelter(x, y, state, threshold) {
+        if (!state.shelters) return null;
+        let nearest = null;
+        let minDist = Infinity;
+        state.shelters.forEach(function (shelter, idx) {
+            const dx = x - shelter.x;
+            const dy = y - shelter.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < threshold && dist < minDist) {
+                minDist = dist;
+                nearest = { shelter: shelter, index: idx };
+            }
+        });
+        return nearest;
+    }
+
+    function handleEvacCanvasClick(e, mapCanvas, state, mapCtx, mapWrapper, elements) {
+        if (!state.evacuationEnabled) return;
+
+        const rect = mapCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const SHELTER_THRESHOLD = 30;
+        const nearest = findNearestShelter(x, y, state, SHELTER_THRESHOLD);
+
+        if (nearest) {
+            state.selectedShelterIndex = nearest.index;
+            global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            return;
+        }
+
+        if (state.selectedShelterIndex !== undefined && state.selectedShelterIndex !== null) {
+            const shelter = state.shelters[state.selectedShelterIndex];
+            if (shelter) {
+                shelter.x = x;
+                shelter.y = y;
+                recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            }
+        }
+    }
+
+    function addShelter(state, elements, mapCtx, mapWrapper) {
+        const rect = mapWrapper.getBoundingClientRect();
+        const count = state.shelters ? state.shelters.length : 0;
+        const angle = count * Math.PI * 0.5 + Math.random() * 0.5;
+        const dist = Math.min(rect.width, rect.height) * (0.2 + Math.random() * 0.2);
+
+        const newShelter = {
+            id: count,
+            x: rect.width / 2 + Math.cos(angle) * dist,
+            y: rect.height / 2 + Math.sin(angle) * dist,
+            capacity: 500000 + Math.floor(Math.random() * 500000),
+            name: '避难所 #' + (count + 1)
+        };
+
+        if (!state.shelters) state.shelters = [];
+        state.shelters.push(newShelter);
+        state.selectedShelterIndex = state.shelters.length - 1;
+
+        if (elements.shelterCount) {
+            elements.shelterCount.value = String(state.shelters.length);
+        }
+
+        recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+        global.Renderer.drawMap(mapCtx, mapWrapper, state);
+    }
+
+    function updateShelterCount(state, elements, mapCtx, mapWrapper) {
+        const count = parseInt(elements.shelterCount.value, 10);
+        const rect = mapWrapper.getBoundingClientRect();
+
+        if (!state.shelters || state.shelters.length !== count) {
+            state.shelters = global.Physics.generateShelters(
+                rect.width, rect.height, count
+            );
+            state.selectedShelterIndex = null;
+            recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+            global.Renderer.drawMap(mapCtx, mapWrapper, state);
+        }
+    }
+
+    function startEvacAnimation(state, elements, effectCtx, effectCanvas) {
+        if (!state.evacuationPlan) return;
+
+        if (global.Evacuation.isEvacuating()) {
+            global.Evacuation.stopEvacuationAnimation();
+        }
+
+        if (elements.evacStartBtn) {
+            elements.evacStartBtn.disabled = true;
+            elements.evacStartBtn.textContent = '▶ 播放中...';
+        }
+        if (elements.evacPauseBtn) {
+            elements.evacPauseBtn.disabled = false;
+        }
+        if (elements.evacModeBadge) {
+            elements.evacModeBadge.textContent = '播放中';
+            elements.evacModeBadge.classList.add('playing');
+        }
+
+        const speed = parseFloat(elements.evacSpeed ? elements.evacSpeed.value : 1);
+        global.Evacuation.setSpeed(speed);
+
+        global.Evacuation.startEvacuationAnimation(
+            effectCtx,
+            effectCanvas,
+            state,
+            elements,
+            state.evacuationPlan
+        );
+    }
+
+    function pauseEvacAnimation(elements) {
+        if (global.Evacuation.isEvacuating()) {
+            global.Evacuation.stopEvacuationAnimation();
+        }
+        if (elements.evacStartBtn) {
+            elements.evacStartBtn.disabled = false;
+            elements.evacStartBtn.textContent = '▶ 继续播放';
+        }
+        if (elements.evacPauseBtn) {
+            elements.evacPauseBtn.disabled = true;
+        }
+        if (elements.evacModeBadge) {
+            elements.evacModeBadge.textContent = '已暂停';
+            elements.evacModeBadge.classList.remove('playing');
+        }
+    }
+
+    function resetEvacAnimation(state, elements, effectCtx, effectCanvas) {
+        global.Evacuation.resetEvacuationAnimation(
+            effectCtx,
+            effectCanvas,
+            state,
+            state.evacuationPlan
+        );
+        if (elements.evacStartBtn) {
+            elements.evacStartBtn.disabled = false;
+            elements.evacStartBtn.textContent = '▶ 播放动画';
+        }
+        if (elements.evacPauseBtn) {
+            elements.evacPauseBtn.disabled = true;
+        }
+        if (elements.evacModeBadge) {
+            elements.evacModeBadge.textContent = '就绪';
+            elements.evacModeBadge.classList.remove('playing');
+        }
+        if (elements.evacProgress) {
+            elements.evacProgress.textContent = '0%';
+        }
+        if (elements.evacProgressFill) {
+            elements.evacProgressFill.style.width = '0%';
+        }
+        if (elements.evacTime) {
+            elements.evacTime.textContent = '0.0 小时';
+        }
+        updateEvacuationDisplay(state, elements);
+    }
+
     function setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, effectCanvas, mapWrapper, flashOverlay, mapHint) {
         elements.bombType.addEventListener('change', function (e) {
             syncSelectedFromControls(state, elements);
@@ -477,8 +730,102 @@
             });
         }
 
+        if (elements.evacuationEnabled) {
+            elements.evacuationEnabled.addEventListener('change', function (e) {
+                state.evacuationEnabled = e.target.checked;
+                if (state.evacuationEnabled && state.shelters && state.shelters.length > 0) {
+                    recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+                }
+                if (elements.evacuationPanel) {
+                    elements.evacuationPanel.classList.toggle('hidden', !e.target.checked);
+                }
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            });
+        }
+
+        if (elements.shelterCount) {
+            elements.shelterCount.addEventListener('change', function () {
+                updateShelterCount(state, elements, mapCtx, mapWrapper);
+            });
+        }
+
+        if (elements.warningTimeSlider) {
+            elements.warningTimeSlider.addEventListener('input', function (e) {
+                const value = parseInt(e.target.value, 10);
+                if (elements.warningTimeValue) {
+                    elements.warningTimeValue.textContent = value;
+                }
+            });
+            elements.warningTimeSlider.addEventListener('change', function () {
+                recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.roadCapacity) {
+            elements.roadCapacity.addEventListener('change', function () {
+                recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.vehicleSpeed) {
+            elements.vehicleSpeed.addEventListener('change', function () {
+                recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.recalcEvacBtn) {
+            elements.recalcEvacBtn.addEventListener('click', function () {
+                recalculateEvacuation(state, elements, mapCtx, mapWrapper);
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.addShelterBtn) {
+            elements.addShelterBtn.addEventListener('click', function () {
+                addShelter(state, elements, mapCtx, mapWrapper);
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.evacStartBtn) {
+            elements.evacStartBtn.addEventListener('click', function () {
+                startEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.evacPauseBtn) {
+            elements.evacPauseBtn.addEventListener('click', function () {
+                pauseEvacAnimation(elements);
+            });
+        }
+
+        if (elements.evacResetBtn) {
+            elements.evacResetBtn.addEventListener('click', function () {
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            });
+        }
+
+        if (elements.evacSpeed) {
+            elements.evacSpeed.addEventListener('change', function (e) {
+                const speed = parseFloat(e.target.value);
+                global.Evacuation.setSpeed(speed);
+            });
+        }
+
         mapCanvas.addEventListener('click', function (e) {
-            handleCanvasClick(e, mapCanvas, state, mapHint, dataElements, mapCtx, mapWrapper, elements);
+            if (state.evacuationEnabled && state.selectedShelterIndex !== undefined && state.selectedShelterIndex !== null) {
+                handleEvacCanvasClick(e, mapCanvas, state, mapCtx, mapWrapper, elements);
+                resetEvacAnimation(state, elements, effectCtx, effectCanvas);
+            } else {
+                handleCanvasClick(e, mapCanvas, state, mapHint, dataElements, mapCtx, mapWrapper, elements);
+            }
         });
 
         let resizeTimeout;
@@ -506,7 +853,16 @@
         syncTerrainControlsFromState: syncTerrainControlsFromState,
         syncStateFromTerrainControls: syncStateFromTerrainControls,
         updateTerrainInfo: updateTerrainInfo,
-        regenerateTerrain: regenerateTerrain
+        regenerateTerrain: regenerateTerrain,
+        recalculateEvacuation: recalculateEvacuation,
+        updateEvacuationDisplay: updateEvacuationDisplay,
+        addShelter: addShelter,
+        updateShelterCount: updateShelterCount,
+        startEvacAnimation: startEvacAnimation,
+        pauseEvacAnimation: pauseEvacAnimation,
+        resetEvacAnimation: resetEvacAnimation,
+        handleEvacCanvasClick: handleEvacCanvasClick,
+        findNearestShelter: findNearestShelter
     };
 
 })(window);

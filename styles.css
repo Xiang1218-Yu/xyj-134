@@ -1393,6 +1393,321 @@ body::before {
     }
 }
 
+.evacuation-section {
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.06), rgba(100, 200, 255, 0.06));
+    border-color: rgba(0, 255, 136, 0.2);
+}
+
+.evacuation-section h2 {
+    color: var(--text-primary);
+}
+
+.evac-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.recalc-btn,
+.add-shelter-btn {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.recalc-btn {
+    background: linear-gradient(135deg, #4a9eff, #2979ff);
+    color: white;
+}
+
+.recalc-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+}
+
+.add-shelter-btn {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+.add-shelter-btn:hover {
+    background: rgba(0, 255, 136, 0.1);
+    border-color: var(--radiation);
+    color: var(--radiation);
+}
+
+.evac-hint {
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    border-left: 3px solid var(--warning);
+}
+
+.evac-hint strong {
+    color: var(--warning);
+}
+
+.evacuation-panel {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+}
+
+.evacuation-panel.hidden {
+    display: none;
+}
+
+.evac-mode-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.evac-mode-badge.playing {
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(100, 200, 255, 0.1));
+    color: #00ff88;
+    border-color: rgba(0, 255, 136, 0.3);
+    animation: badge-pulse 2s ease-in-out infinite;
+}
+
+.evac-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.evac-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    border-left: 3px solid var(--border);
+}
+
+.evac-stat-item.success {
+    border-left-color: #00ff88;
+}
+
+.evac-stat-item.danger {
+    border-left-color: var(--accent);
+}
+
+.evac-stat-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+}
+
+.evac-stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.evac-stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.evac-stat-item.success .evac-stat-value {
+    color: #00ff88;
+}
+
+.evac-stat-item.danger .evac-stat-value {
+    color: var(--accent);
+}
+
+.evac-progress-section {
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+
+.evac-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.evac-progress-bar {
+    height: 12px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.evac-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00ff88, #4a9eff);
+    border-radius: 6px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.evac-time-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.evac-time-info strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.evac-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.evac-btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.evac-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    border-color: var(--radiation);
+    color: var(--radiation);
+}
+
+.evac-btn.primary {
+    background: linear-gradient(135deg, #00ff88, #00cc6a);
+    color: #003322;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+}
+
+.evac-btn.primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 255, 136, 0.5);
+    filter: brightness(1.05);
+}
+
+.evac-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.evac-speed {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.evac-speed label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.evac-speed select {
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.road-density-legend {
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+
+.legend-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.density-items {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.density-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.density-bar {
+    width: 24px;
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.density-bar.low {
+    background: #64c864;
+    box-shadow: 0 0 6px rgba(100, 200, 100, 0.5);
+}
+
+.density-bar.medium {
+    background: #ffc832;
+    box-shadow: 0 0 6px rgba(255, 200, 50, 0.5);
+}
+
+.density-bar.high {
+    background: #ff6432;
+    box-shadow: 0 0 6px rgba(255, 100, 50, 0.5);
+}
+
+.density-bar.critical {
+    background: #ff3232;
+    box-shadow: 0 0 6px rgba(255, 50, 50, 0.5);
+}
+
 @media (max-width: 600px) {
     .header {
         padding: 16px 20px;
@@ -1443,5 +1758,22 @@ body::before {
 
     .timeline-current-info {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .evac-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .evac-controls {
+        flex-wrap: wrap;
+    }
+
+    .evac-speed {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .density-items {
+        grid-template-columns: 1fr;
     }
 }

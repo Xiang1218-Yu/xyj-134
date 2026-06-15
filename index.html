@@ -140,6 +140,57 @@
                     </div>
                 </section>
 
+                <section class="panel-section evacuation-section">
+                    <h2>🚗 撤离路径规划</h2>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="evacuationEnabled" checked>
+                        <label for="evacuationEnabled">显示撤离模拟</label>
+                    </div>
+                    <div class="form-group">
+                        <label>避难所数量</label>
+                        <select id="shelterCount">
+                            <option value="2">2 个</option>
+                            <option value="3" selected>3 个</option>
+                            <option value="4">4 个</option>
+                            <option value="5">5 个</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>预警提前时间 (分钟)</label>
+                        <input type="range" id="warningTimeSlider" min="5" max="120" value="30">
+                        <div class="slider-value"><span id="warningTimeValue">30</span> 分钟</div>
+                    </div>
+                    <div class="form-group">
+                        <label>道路承载倍率</label>
+                        <select id="roadCapacity">
+                            <option value="0.5">0.5x (低承载)</option>
+                            <option value="1" selected>1.0x (正常)</option>
+                            <option value="2">2.0x (高承载)</option>
+                            <option value="3">3.0x (极高承载)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>车辆行驶速度</label>
+                        <select id="vehicleSpeed">
+                            <option value="30">30 km/h (拥堵)</option>
+                            <option value="60" selected>60 km/h (正常)</option>
+                            <option value="90">90 km/h (畅通)</option>
+                            <option value="120">120 km/h (高速)</option>
+                        </select>
+                    </div>
+                    <div class="evac-actions">
+                        <button id="recalcEvacBtn" class="recalc-btn">
+                            <span class="btn-icon">🔄</span> 重新计算路径
+                        </button>
+                        <button id="addShelterBtn" class="add-shelter-btn">
+                            <span class="btn-icon">+</span> 添加避难所
+                        </button>
+                    </div>
+                    <div class="evac-hint">
+                        💡 <strong>提示：</strong>点击地图空白处可移动选中的避难所
+                    </div>
+                </section>
+
                 <section class="panel-section action-section">
                     <button id="detonateBtn" class="detonate-btn">
                         <span class="btn-icon">💥</span>
@@ -405,6 +456,101 @@
                         <canvas id="trendChartCanvas" height="180"></canvas>
                     </div>
                 </div>
+
+                <div class="evacuation-panel" id="evacuationPanel">
+                    <div class="panel-header">
+                        <h3>🚗 撤离模拟</h3>
+                        <div class="evac-mode-badge" id="evacModeBadge">就绪</div>
+                    </div>
+
+                    <div class="evac-stats-grid">
+                        <div class="evac-stat-item">
+                            <span class="evac-stat-icon">👥</span>
+                            <div>
+                                <div class="evac-stat-label">总人口</div>
+                                <div class="evac-stat-value" id="evacTotalPop">0</div>
+                            </div>
+                        </div>
+                        <div class="evac-stat-item success">
+                            <span class="evac-stat-icon">✅</span>
+                            <div>
+                                <div class="evac-stat-label">可撤离</div>
+                                <div class="evac-stat-value" id="evacEvacuated">0</div>
+                            </div>
+                        </div>
+                        <div class="evac-stat-item danger">
+                            <span class="evac-stat-icon">⚠️</span>
+                            <div>
+                                <div class="evac-stat-label">未及时撤离</div>
+                                <div class="evac-stat-value" id="evacStranded">0</div>
+                            </div>
+                        </div>
+                        <div class="evac-stat-item">
+                            <span class="evac-stat-icon">📊</span>
+                            <div>
+                                <div class="evac-stat-label">撤离成功率</div>
+                                <div class="evac-stat-value" id="evacRate">0%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="evac-progress-section">
+                        <div class="evac-progress-header">
+                            <span>撤离进度</span>
+                            <span id="evacProgress">0%</span>
+                        </div>
+                        <div class="evac-progress-bar">
+                            <div class="evac-progress-fill" id="evacProgressFill"></div>
+                        </div>
+                        <div class="evac-time-info">
+                            <span>模拟时间: <strong id="evacTime">0.0 小时</strong></span>
+                            <span>预警时间: <strong id="evacWarningTime">30 分钟</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="evac-controls">
+                        <button class="evac-btn primary" id="evacStartBtn">
+                            <span class="btn-icon">▶</span> 播放动画
+                        </button>
+                        <button class="evac-btn" id="evacPauseBtn" disabled>
+                            <span class="btn-icon">⏸</span> 暂停
+                        </button>
+                        <button class="evac-btn" id="evacResetBtn">
+                            <span class="btn-icon">↺</span> 重置
+                        </button>
+                        <div class="evac-speed">
+                            <label>速度</label>
+                            <select id="evacSpeed">
+                                <option value="0.5">0.5x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="2">2x</option>
+                                <option value="4">4x</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="road-density-legend">
+                        <div class="legend-title">道路密度图例</div>
+                        <div class="density-items">
+                            <div class="density-item">
+                                <span class="density-bar low"></span>
+                                <span>畅通 &lt;30%</span>
+                            </div>
+                            <div class="density-item">
+                                <span class="density-bar medium"></span>
+                                <span>缓行 30-60%</span>
+                            </div>
+                            <div class="density-item">
+                                <span class="density-bar high"></span>
+                                <span>拥堵 60-100%</span>
+                            </div>
+                            <div class="density-item">
+                                <span class="density-bar critical"></span>
+                                <span>严重拥堵 &gt;100%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </main>
         </div>
 
@@ -414,12 +560,13 @@
         </footer>
     </div>
 
-    <script src="physics.js?v=20260615d"></script>
-    <script src="data-display.js?v=20260615d"></script>
-    <script src="renderer.js?v=20260615d"></script>
-    <script src="animation.js?v=20260615d"></script>
-    <script src="timeline.js?v=20260615d"></script>
-    <script src="ui.js?v=20260615d"></script>
-    <script src="app.js?v=20260615d"></script>
+    <script src="physics.js?v=20260615e"></script>
+    <script src="data-display.js?v=20260615e"></script>
+    <script src="renderer.js?v=20260615e"></script>
+    <script src="animation.js?v=20260615e"></script>
+    <script src="timeline.js?v=20260615e"></script>
+    <script src="evacuation.js?v=20260615e"></script>
+    <script src="ui.js?v=20260615e"></script>
+    <script src="app.js?v=20260615e"></script>
 </body>
 </html>

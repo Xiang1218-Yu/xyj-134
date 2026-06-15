@@ -31,7 +31,12 @@
         terrainSeed: Math.floor(Math.random() * 100000),
         terrainData: null,
         showTerrainContours: true,
-        showTerrainHeatmap: true
+        showTerrainHeatmap: true,
+        evacuationEnabled: true,
+        shelters: [],
+        selectedShelterIndex: null,
+        evacuationPlan: null,
+        evacuationRoads: []
     };
 
     function getSelectedExplosion() {
@@ -96,7 +101,47 @@
         window.UI.syncTerrainControlsFromState(state, elements);
         window.UI.updateAllCalculations(state);
         window.DataDisplay.updateDataDisplay(dataElements, state);
+
+        initEvacuation(elements, rect.width, rect.height);
+
         window.Renderer.drawMap(mapCtx, mapWrapper, state);
+    }
+
+    function initEvacuation(elements, width, height) {
+        const shelterCount = elements.shelterCount
+            ? parseInt(elements.shelterCount.value, 10)
+            : 3;
+
+        state.shelters = window.Physics.generateShelters(width, height, shelterCount);
+        state.evacuationRoads = window.Physics.generateRoadNetwork(width, height, state.cities, state.shelters);
+
+        const warningTime = elements.warningTimeSlider
+            ? parseInt(elements.warningTimeSlider.value, 10)
+            : 30;
+
+        const roadCapMultiplier = elements.roadCapacity
+            ? parseFloat(elements.roadCapacity.value)
+            : 1;
+
+        const vehSpeed = elements.vehicleSpeed
+            ? parseInt(elements.vehicleSpeed.value, 10)
+            : 60;
+
+        state.evacuationPlan = window.Physics.calculateEvacuationPlan(
+            state.cities,
+            state.shelters,
+            state.evacuationRoads,
+            state.scale,
+            warningTime,
+            roadCapMultiplier,
+            vehSpeed
+        );
+
+        window.UI.updateEvacuationDisplay(state, elements);
+
+        if (elements.evacuationPanel) {
+            elements.evacuationPanel.classList.toggle('hidden', !state.evacuationEnabled);
+        }
     }
 
     window.App = {

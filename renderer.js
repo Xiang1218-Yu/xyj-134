@@ -72,8 +72,18 @@
             drawTerrainContours(mapCtx, width, height, state.terrainData);
         }
 
-        drawRoadsLayer(mapCtx, width, height, state.cities);
+        if (state.evacuationEnabled && state.evacuationPlan && state.evacuationPlan.roadDensities) {
+            drawEvacuationRoads(mapCtx, state);
+        } else {
+            drawRoadsLayer(mapCtx, width, height, state.cities);
+        }
+
         drawCities(mapCtx, state);
+
+        if (state.evacuationEnabled && state.shelters && state.shelters.length > 0) {
+            drawSheltersOnMap(mapCtx, state);
+        }
+
         drawExplosionZones(mapCtx, width, height, state);
     }
 
@@ -407,6 +417,161 @@
             mapCtx.lineTo(road.x2, road.y2);
             mapCtx.stroke();
         });
+    }
+
+    function drawEvacuationRoads(mapCtx, state) {
+        const roadDensities = state.evacuationPlan.roadDensities;
+        const nodes = state.evacuationPlan.graph.nodes;
+
+        roadDensities.forEach(function (rd) {
+            const edge = rd.edge;
+            const density = rd.density;
+
+            const fromNode = nodes[edge.from];
+            const toNode = nodes[edge.to];
+
+            if (!fromNode || !toNode) return;
+
+            let color;
+            let lineWidth;
+
+            if (density < 0.3) {
+                color = rgba(100, 200, 100, 0.6);
+                lineWidth = 3;
+            } else if (density < 0.6) {
+                color = rgba(255, 200, 50, 0.7);
+                lineWidth = 4;
+            } else if (density < 1) {
+                color = rgba(255, 100, 50, 0.8);
+                lineWidth = 5;
+            } else {
+                color = rgba(255, 50, 50, 0.9);
+                lineWidth = 6;
+            }
+
+            mapCtx.strokeStyle = color;
+            mapCtx.lineWidth = lineWidth;
+            mapCtx.lineCap = 'round';
+
+            mapCtx.beginPath();
+            mapCtx.moveTo(fromNode.x, fromNode.y);
+            mapCtx.lineTo(toNode.x, toNode.y);
+            mapCtx.stroke();
+        });
+
+        drawEvacuationArrows(mapCtx, state);
+    }
+
+    function drawEvacuationArrows(mapCtx, state) {
+        const cityPlans = state.evacuationPlan.cityPlans;
+        const nodes = state.evacuationPlan.graph.nodes;
+
+        cityPlans.forEach(function (plan) {
+            if (!plan.path || plan.path.length === 0 || plan.evacuated <= 0) return;
+
+            plan.path.forEach(function (edge) {
+                const fromNode = nodes[edge.from];
+                const toNode = nodes[edge.to];
+                if (!fromNode || !toNode) return;
+
+                const midX = (fromNode.x + toNode.x) / 2;
+                const midY = (fromNode.y + toNode.y) / 2;
+
+                const angle = Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+                const arrowSize = 10;
+
+                const arrowAlpha = plan.canEvacuate ? 0.7 : 0.4;
+
+                mapCtx.save();
+                mapCtx.translate(midX, midY);
+                mapCtx.rotate(angle);
+
+                mapCtx.fillStyle = plan.canEvacuate
+                    ? rgba(100, 200, 255, arrowAlpha)
+                    : rgba(255, 100, 100, arrowAlpha);
+
+                mapCtx.beginPath();
+                mapCtx.moveTo(arrowSize, 0);
+                mapCtx.lineTo(-arrowSize / 2, -arrowSize / 2);
+                mapCtx.lineTo(-arrowSize / 2, arrowSize / 2);
+                mapCtx.closePath();
+                mapCtx.fill();
+
+                mapCtx.restore();
+            });
+        });
+    }
+
+    function drawSheltersOnMap(mapCtx, state) {
+        state.shelters.forEach(function (shelter, idx) {
+            const x = shelter.x;
+            const y = shelter.y;
+            const size = 22;
+            const isSelected = state.selectedShelterIndex === idx;
+
+            const glowGrad = mapCtx.createRadialGradient(x, y, 0, x, y, size * 2.5);
+            glowGrad.addColorStop(0, rgba(0, 255, 136, isSelected ? 0.4 : 0.2));
+            glowGrad.addColorStop(1, rgba(0, 255, 136, 0));
+            mapCtx.fillStyle = glowGrad;
+            mapCtx.beginPath();
+            mapCtx.arc(x, y, size * 2.5, 0, Math.PI * 2);
+            mapCtx.fill();
+
+            if (isSelected) {
+                mapCtx.beginPath();
+                mapCtx.arc(x, y, size + 6, 0, Math.PI * 2);
+                mapCtx.strokeStyle = rgba(255, 255, 255, 0.6);
+                mapCtx.lineWidth = 2;
+                mapCtx.setLineDash([6, 4]);
+                mapCtx.stroke();
+                mapCtx.setLineDash([]);
+            }
+
+            const bgGrad = mapCtx.createRadialGradient(x, y, 0, x, y, size);
+            bgGrad.addColorStop(0, '#00ff88');
+            bgGrad.addColorStop(0.7, '#00cc6a');
+            bgGrad.addColorStop(1, '#007744');
+            mapCtx.fillStyle = bgGrad;
+            mapCtx.beginPath();
+            mapCtx.arc(x, y, size, 0, Math.PI * 2);
+            mapCtx.fill();
+
+            mapCtx.strokeStyle = isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)';
+            mapCtx.lineWidth = isSelected ? 3 : 2;
+            mapCtx.stroke();
+
+            mapCtx.fillStyle = '#ffffff';
+            mapCtx.font = 'bold 18px sans-serif';
+            mapCtx.textAlign = 'center';
+            mapCtx.textBaseline = 'middle';
+            mapCtx.fillText('🏠', x, y);
+
+            if (state.showLabels) {
+                mapCtx.fillStyle = 'rgba(0,0,0,0.75)';
+                const label = shelter.name;
+                mapCtx.font = '11px sans-serif';
+                const tw = mapCtx.measureText(label).width;
+                mapCtx.fillRect(x - tw / 2 - 6, y + size + 4, tw + 12, 18);
+                mapCtx.fillStyle = '#00ff88';
+                mapCtx.fillText(label, x, y + size + 15);
+
+                const capLabel = formatCapacity(shelter.capacity);
+                mapCtx.fillStyle = 'rgba(0,0,0,0.6)';
+                mapCtx.font = '10px sans-serif';
+                const capTw = mapCtx.measureText(capLabel).width;
+                mapCtx.fillRect(x - capTw / 2 - 6, y + size + 22, capTw + 12, 16);
+                mapCtx.fillStyle = 'rgba(255,255,255,0.8)';
+                mapCtx.fillText(capLabel, x, y + size + 32);
+            }
+        });
+
+        mapCtx.textBaseline = 'alphabetic';
+    }
+
+    function formatCapacity(cap) {
+        if (cap >= 1000000) return (cap / 1000000).toFixed(1) + 'M 人';
+        if (cap >= 1000) return (cap / 1000).toFixed(0) + 'K 人';
+        return cap + ' 人';
     }
 
     function drawCities(mapCtx, state) {
