@@ -299,6 +299,10 @@
                     state.isAnimating = false;
                     elements.detonateBtn.disabled = false;
                     flashOverlay.classList.remove('active');
+
+                    if (global.Timeline) {
+                        global.Timeline.start(state, effectCtx, effectCanvas);
+                    }
                 }, 600);
             }
         }

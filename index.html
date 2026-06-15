@@ -315,6 +315,96 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="timeline-panel" id="timelinePanel">
+                    <div class="panel-header">
+                        <h3>⏱️ 时间轴推演</h3>
+                        <div class="timeline-mode-badge" id="timelineModeBadge">待机中</div>
+                    </div>
+
+                    <div class="timeline-stages" id="timelineStages">
+                        <div class="stage-dot active" data-stage="0">
+                            <div class="stage-marker"></div>
+                            <span class="stage-label">爆炸瞬间</span>
+                            <span class="stage-time">T+0</span>
+                        </div>
+                        <div class="stage-line"></div>
+                        <div class="stage-dot" data-stage="1">
+                            <div class="stage-marker"></div>
+                            <span class="stage-label">早期沉降</span>
+                            <span class="stage-time">1小时</span>
+                        </div>
+                        <div class="stage-line"></div>
+                        <div class="stage-dot" data-stage="2">
+                            <div class="stage-marker"></div>
+                            <span class="stage-label">中期扩散</span>
+                            <span class="stage-time">1天</span>
+                        </div>
+                        <div class="stage-line"></div>
+                        <div class="stage-dot" data-stage="3">
+                            <div class="stage-marker"></div>
+                            <span class="stage-label">晚期沉降</span>
+                            <span class="stage-time">1周</span>
+                        </div>
+                        <div class="stage-line"></div>
+                        <div class="stage-dot" data-stage="4">
+                            <div class="stage-marker"></div>
+                            <span class="stage-label">长期影响</span>
+                            <span class="stage-time">1月</span>
+                        </div>
+                    </div>
+
+                    <div class="timeline-controls">
+                        <button class="timeline-btn" id="timelinePlayBtn" disabled>
+                            <span class="btn-icon">▶</span> 播放
+                        </button>
+                        <button class="timeline-btn" id="timelineResetBtn" disabled>
+                            <span class="btn-icon">↺</span> 重置
+                        </button>
+                        <div class="timeline-slider-container">
+                            <input type="range" id="timelineSlider" min="0" max="1000" value="0" disabled>
+                        </div>
+                        <div class="timeline-speed">
+                            <label>速度</label>
+                            <select id="timelineSpeed" disabled>
+                                <option value="0.5">0.5x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="2">2x</option>
+                                <option value="4">4x</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="timeline-current-info">
+                        <div class="info-block">
+                            <span class="info-label">当前时间点</span>
+                            <span class="info-value" id="timelineCurrentTime">爆炸瞬间</span>
+                        </div>
+                        <div class="info-block">
+                            <span class="info-label">累计死亡</span>
+                            <span class="info-value death-value" id="timelineDeaths">0</span>
+                        </div>
+                        <div class="info-block">
+                            <span class="info-label">累计受伤</span>
+                            <span class="info-value injured-value" id="timelineInjured">0</span>
+                        </div>
+                        <div class="info-block">
+                            <span class="info-label">沉降范围</span>
+                            <span class="info-value fallout-value" id="timelineFalloutArea">0 km²</span>
+                        </div>
+                    </div>
+
+                    <div class="trend-chart-container">
+                        <div class="chart-header">
+                            <span class="chart-title">📈 伤亡增长趋势</span>
+                            <div class="chart-legend">
+                                <span class="legend-dot death-dot"></span> 死亡
+                                <span class="legend-dot injured-dot"></span> 受伤
+                            </div>
+                        </div>
+                        <canvas id="trendChartCanvas" height="180"></canvas>
+                    </div>
+                </div>
             </main>
         </div>
 
@@ -328,6 +418,7 @@
     <script src="data-display.js?v=20260615d"></script>
     <script src="renderer.js?v=20260615d"></script>
     <script src="animation.js?v=20260615d"></script>
+    <script src="timeline.js?v=20260615d"></script>
     <script src="ui.js?v=20260615d"></script>
     <script src="app.js?v=20260615d"></script>
 </body>

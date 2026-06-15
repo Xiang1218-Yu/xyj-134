@@ -73,7 +73,7 @@
         const dataElements = window.DataDisplay.getElements();
 
         window.Renderer.setupCanvas(mapCanvas, effectCanvas, mapCtx, effectCtx, mapWrapper, state);
-        window.UI.setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, mapWrapper, flashOverlay, mapHint);
+        window.UI.setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, effectCanvas, mapWrapper, flashOverlay, mapHint);
 
         const rect = mapWrapper.getBoundingClientRect();
 

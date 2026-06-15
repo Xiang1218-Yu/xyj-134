@@ -285,6 +285,11 @@
             alert('请至少为一个爆炸点设置位置');
             return;
         }
+
+        if (global.Timeline && global.Timeline.isActive()) {
+            global.Timeline.stop();
+        }
+
         global.Animation.animateExplosion(effectCtx, effectCanvas, mapWrapper, state, elements, flashOverlay);
     }
 
@@ -292,6 +297,11 @@
         if (state.animationId) {
             cancelAnimationFrame(state.animationId);
         }
+
+        if (global.Timeline && global.Timeline.isActive()) {
+            global.Timeline.stop();
+        }
+
         state.isAnimating = false;
         state.animationId = null;
         state.explosions = [];
@@ -342,7 +352,7 @@
         global.DataDisplay.updateDataDisplay(dataElements, state);
     }
 
-    function setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, mapWrapper, flashOverlay, mapHint) {
+    function setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, effectCanvas, mapWrapper, flashOverlay, mapHint) {
         elements.bombType.addEventListener('change', function (e) {
             syncSelectedFromControls(state, elements);
             const selected = getSelectedExplosion(state);
@@ -416,7 +426,7 @@
         });
 
         elements.detonateBtn.addEventListener('click', function () {
-            triggerDetonate(state, elements, effectCtx, null, mapWrapper, flashOverlay);
+            triggerDetonate(state, elements, effectCtx, effectCanvas, mapWrapper, flashOverlay);
         });
 
         elements.resetBtn.addEventListener('click', function () {
