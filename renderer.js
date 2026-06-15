@@ -251,6 +251,137 @@
         fireball:  { line: 'rgba(255, 200, 80, 0.70)', fill: 'rgba(255, 160, 60, 0.15)',  angle: 0, spacing: 6 }
     };
 
+    const OVERLAP_LEVEL_STYLES = {
+        2: null,
+        3: {
+            fillBase: [
+                'rgba(255, 255, 255, 0.08)',
+                'rgba(255, 255, 255, 0.10)',
+                'rgba(255, 255, 255, 0.11)',
+                'rgba(255, 255, 255, 0.12)',
+                'rgba(255, 255, 255, 0.13)',
+                'rgba(255, 255, 255, 0.14)'
+            ],
+            hatch2: true,
+            lineAlpha: 0.70,
+            spacing2: 6,
+            strokeOutline: true,
+            outlineColor: 'rgba(255, 255, 255, 0.28)',
+            outlineWidth: 1.2,
+            label: '3圆'
+        },
+        4: {
+            fillBase: [
+                'rgba(255, 220, 80, 0.22)',
+                'rgba(255, 210, 70, 0.24)',
+                'rgba(255, 200, 60, 0.26)',
+                'rgba(255, 190, 50, 0.28)',
+                'rgba(255, 180, 40, 0.30)',
+                'rgba(255, 170, 30, 0.32)'
+            ],
+            hatch2: true,
+            lineAlpha: 0.85,
+            spacing2: 5,
+            border: true,
+            borderColor: 'rgba(255, 230, 120, 0.75)',
+            borderWidth: 2.0,
+            label: '4圆+'
+        }
+    };
+
+    function generateCombinations(arr, k) {
+        const result = [];
+        const n = arr.length;
+        if (k > n) return result;
+        const idx = [];
+        for (let i = 0; i < k; i++) idx.push(i);
+        while (true) {
+            result.push(idx.map(function (i) { return arr[i]; }));
+            let pos = k - 1;
+            while (pos >= 0 && idx[pos] === n - k + pos) pos--;
+            if (pos < 0) break;
+            idx[pos]++;
+            for (let j = pos + 1; j < k; j++) idx[j] = idx[j - 1] + 1;
+        }
+        return result;
+    }
+
+    function drawMultiCircleOverlap(ctx, circles, zoneIndex, level) {
+        const cw = ctx.canvas.width / (window.devicePixelRatio || 1);
+        const ch = ctx.canvas.height / (window.devicePixelRatio || 1);
+        const diag = Math.sqrt(cw * cw + ch * ch);
+        const cx = cw / 2;
+        const cy = ch / 2;
+
+        for (let c = 0; c < circles.length; c++) {
+            const r = circles[c].r;
+            if (r <= 1) return;
+        }
+
+        ctx.save();
+        for (let c = 0; c < circles.length; c++) {
+            ctx.beginPath();
+            ctx.arc(circles[c].cx, circles[c].cy, circles[c].r, 0, Math.PI * 2);
+            ctx.clip();
+        }
+
+        const lvlStyle = OVERLAP_LEVEL_STYLES[level];
+        if (!lvlStyle) {
+            ctx.restore();
+            return;
+        }
+
+        if (lvlStyle.fillBase) {
+            ctx.fillStyle = lvlStyle.fillBase[zoneIndex % lvlStyle.fillBase.length];
+            ctx.fillRect(0, 0, cw, ch);
+        }
+
+        if (lvlStyle.hatch2) {
+            const baseStyle = OVERLAY_HATCH_COLORS[ZONE_DEFS[zoneIndex].key];
+            const lineRgbMatch = baseStyle.line.match(/rgba?\(([^)]+)\)/);
+            let lineColor = baseStyle.line;
+            if (lineRgbMatch) {
+                const parts = lineRgbMatch[1].split(',').map(function (s) { return s.trim(); });
+                lineColor = 'rgba(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ',' + lvlStyle.lineAlpha + ')';
+            }
+            ctx.strokeStyle = lineColor;
+            ctx.lineWidth = 1.3;
+            ctx.beginPath();
+            const angle2 = -baseStyle.angle + Math.PI / 2;
+            const cos1 = Math.cos(baseStyle.angle);
+            const sin1 = Math.sin(baseStyle.angle);
+            const cos2 = Math.cos(angle2);
+            const sin2 = Math.sin(angle2);
+            const sp1 = baseStyle.spacing;
+            const sp2 = lvlStyle.spacing2;
+            for (let t = -diag; t <= diag; t += sp1) {
+                ctx.moveTo(cx + (-diag) * cos1 + t * (-sin1), cy + (-diag) * sin1 + t * cos1);
+                ctx.lineTo(cx + diag * cos1 + t * (-sin1), cy + diag * sin1 + t * cos1);
+            }
+            for (let t = -diag; t <= diag; t += sp2) {
+                ctx.moveTo(cx + (-diag) * cos2 + t * (-sin2), cy + (-diag) * sin2 + t * cos2);
+                ctx.lineTo(cx + diag * cos2 + t * (-sin2), cy + diag * sin2 + t * cos2);
+            }
+            ctx.stroke();
+        }
+
+        if (lvlStyle.border) {
+            ctx.strokeStyle = lvlStyle.borderColor;
+            ctx.lineWidth = lvlStyle.borderWidth || 1.5;
+            ctx.setLineDash([3, 2]);
+            ctx.strokeRect(0, 0, cw, ch);
+            ctx.setLineDash([]);
+        }
+
+        if (lvlStyle.strokeOutline) {
+            ctx.strokeStyle = lvlStyle.outlineColor;
+            ctx.lineWidth = lvlStyle.outlineWidth || 1.0;
+            ctx.strokeRect(0, 0, cw, ch);
+        }
+
+        ctx.restore();
+    }
+
     function buildCircleIntersectionPath(ctx, x1, y1, r1, x2, y2, r2) {
         const dx = x2 - x1;
         const dy = y2 - y1;
@@ -334,22 +465,37 @@
 
         if (scaled.length < 2) return;
 
-        ZONE_DEFS.forEach(function (zone) {
-            const zk = zone.key;
-            const style = OVERLAY_HATCH_COLORS[zk];
-            for (let i = 0; i < scaled.length; i++) {
-                for (let j = i + 1; j < scaled.length; j++) {
-                    const A = scaled[i];
-                    const B = scaled[j];
-                    const rA = A.r[zk];
-                    const rB = B.r[zk];
-                    if (rA <= 1 || rB <= 1) continue;
+        const n = scaled.length;
+        const maxLevel = Math.min(n, 6);
 
-                    const hasIntersection = buildCircleIntersectionPath(mapCtx, A.cx, A.cy, rA, B.cx, B.cy, rB);
-                    if (hasIntersection) {
-                        mapCtx.fillStyle = style.fill;
-                        mapCtx.fill();
-                        drawHatchInsidePath(mapCtx, style);
+        ZONE_DEFS.forEach(function (zone, zoneIndex) {
+            const zk = zone.key;
+            const baseStyle = OVERLAY_HATCH_COLORS[zk];
+
+            for (let level = 2; level <= maxLevel; level++) {
+                const combos = generateCombinations(scaled, level);
+                for (let ci = 0; ci < combos.length; ci++) {
+                    const combo = combos[ci];
+                    const circlesWithR = [];
+                    for (let k = 0; k < combo.length; k++) {
+                        const r = combo[k].r[zk];
+                        if (r > 1) {
+                            circlesWithR.push({ cx: combo[k].cx, cy: combo[k].cy, r: r });
+                        }
+                    }
+                    if (circlesWithR.length < level) continue;
+
+                    if (level === 2) {
+                        const A = circlesWithR[0];
+                        const B = circlesWithR[1];
+                        const hasInt = buildCircleIntersectionPath(mapCtx, A.cx, A.cy, A.r, B.cx, B.cy, B.r);
+                        if (hasInt) {
+                            mapCtx.fillStyle = baseStyle.fill;
+                            mapCtx.fill();
+                            drawHatchInsidePath(mapCtx, baseStyle);
+                        }
+                    } else {
+                        drawMultiCircleOverlap(mapCtx, circlesWithR, zoneIndex, level);
                     }
                 }
             }
