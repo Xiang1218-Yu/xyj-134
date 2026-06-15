@@ -74,7 +74,8 @@
     window.App = {
         createExplosion: createExplosion,
         getSelectedExplosion: getSelectedExplosion,
-        getExplosionById: getExplosionById
+        getExplosionById: getExplosionById,
+        get state() { return state; }
     };
 
     document.addEventListener('DOMContentLoaded', init);

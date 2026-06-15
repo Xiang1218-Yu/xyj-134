@@ -129,13 +129,19 @@
         refreshExplosionList(state, elements);
     }
 
-    function addExplosion(state, elements, mapWrapper) {
+    function addExplosion(state, elements, mapWrapper, position) {
         const rect = mapWrapper.getBoundingClientRect();
-        const newExp = global.App.createExplosion({
-            explosionCenter: {
+        let center;
+        if (position) {
+            center = position;
+        } else {
+            center = {
                 x: rect.width / 2 + (Math.random() - 0.5) * rect.width * 0.4,
                 y: rect.height / 2 + (Math.random() - 0.5) * rect.height * 0.4
-            }
+            };
+        }
+        const newExp = global.App.createExplosion({
+            explosionCenter: center
         });
         updateCalculationsForExplosion(newExp);
         state.explosions.push(newExp);
@@ -143,6 +149,22 @@
         syncControlsFromSelected(state, elements);
         refreshExplosionList(state, elements);
         return newExp;
+    }
+
+    function findNearestExplosion(x, y, state, thresholdPx) {
+        let nearest = null;
+        let nearestDist = Infinity;
+        state.explosions.forEach(function (exp) {
+            if (!exp.explosionCenter) return;
+            const dx = x - exp.explosionCenter.x;
+            const dy = y - exp.explosionCenter.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < thresholdPx && dist < nearestDist) {
+                nearestDist = dist;
+                nearest = exp;
+            }
+        });
+        return nearest;
     }
 
     function removeSelectedExplosion(state, elements) {
@@ -163,21 +185,40 @@
     function handleCanvasClick(e, mapCanvas, state, mapHint, dataElements, mapCtx, mapWrapper, elements) {
         if (state.isAnimating) return;
 
-        const selected = getSelectedExplosion(state);
-        if (!selected) {
-            alert('请先选中一个爆炸点');
-            return;
-        }
-
         const rect = mapCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        selected.explosionCenter = { x: x, y: y };
+        if (e.shiftKey) {
+            const newExp = addExplosion(state, elements, mapWrapper, { x: x, y: y });
+            mapHint.classList.add('hidden');
+            global.DataDisplay.updateDataDisplay(dataElements, state);
+            global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            return;
+        }
 
-        mapHint.classList.add('hidden');
-        updateCalculationsForExplosion(selected);
-        refreshExplosionList(state, elements);
+        const SELECT_THRESHOLD = 24;
+        const nearest = findNearestExplosion(x, y, state, SELECT_THRESHOLD);
+        if (nearest) {
+            selectExplosion(state, nearest.id, elements);
+        } else {
+            const selected = getSelectedExplosion(state);
+            if (!selected) {
+                const firstWithPos = state.explosions.find(function (e) { return e.explosionCenter; });
+                if (firstWithPos) {
+                    selectExplosion(state, firstWithPos.id, elements);
+                } else {
+                    alert('请先选中一个爆炸点');
+                    return;
+                }
+            }
+            const currentSelected = getSelectedExplosion(state);
+            currentSelected.explosionCenter = { x: x, y: y };
+            mapHint.classList.add('hidden');
+            updateCalculationsForExplosion(currentSelected);
+            refreshExplosionList(state, elements);
+        }
+
         global.DataDisplay.updateDataDisplay(dataElements, state);
         global.Renderer.drawMap(mapCtx, mapWrapper, state);
     }

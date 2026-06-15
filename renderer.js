@@ -233,10 +233,126 @@
             drawOneExplosionZones(mapCtx, exp, index, state);
         });
 
+        drawAllOverlapHighlights(mapCtx, state);
+
         state.explosions.forEach(function (exp, index) {
             if (!exp.explosionCenter) return;
             const isSelected = exp.id === state.selectedExplosionId;
             drawExplosionMarker(mapCtx, exp.explosionCenter.x, exp.explosionCenter.y, index + 1, isSelected);
+        });
+    }
+
+    const OVERLAY_HATCH_COLORS = {
+        thermal:   { line: 'rgba(255, 80, 160, 0.55)', fill: 'rgba(255, 120, 180, 0.10)', angle: Math.PI / 5, spacing: 9 },
+        light:     { line: 'rgba(255, 220, 80, 0.55)', fill: 'rgba(255, 220, 100, 0.10)', angle: -Math.PI / 5, spacing: 9 },
+        moderate:  { line: 'rgba(255, 150, 60, 0.60)', fill: 'rgba(255, 160, 80, 0.12)', angle: Math.PI / 4, spacing: 8 },
+        severe:    { line: 'rgba(255, 70, 70, 0.65)',  fill: 'rgba(255, 90, 90, 0.12)',  angle: -Math.PI / 4, spacing: 7 },
+        radiation: { line: 'rgba(120, 255, 180, 0.60)', fill: 'rgba(140, 255, 180, 0.12)', angle: Math.PI / 3, spacing: 7 },
+        fireball:  { line: 'rgba(255, 200, 80, 0.70)', fill: 'rgba(255, 160, 60, 0.15)',  angle: 0, spacing: 6 }
+    };
+
+    function buildCircleIntersectionPath(ctx, x1, y1, r1, x2, y2, r2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const d = Math.sqrt(dx * dx + dy * dy);
+
+        if (d >= r1 + r2 - 0.5) return false;
+        if (d <= Math.abs(r1 - r2) + 0.5) {
+            const minR = Math.min(r1, r2);
+            const cx = r1 < r2 ? x1 : x2;
+            const cy = r1 < r2 ? y1 : y2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, minR, 0, Math.PI * 2);
+            return true;
+        }
+
+        const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+        const hSq = r1 * r1 - a * a;
+        if (hSq < 0) return false;
+        const h = Math.sqrt(hSq);
+
+        const px = x1 + a * dx / d;
+        const py = y1 + a * dy / d;
+        const ix = -h * dy / d;
+        const iy = h * dx / d;
+
+        const p1x = px + ix, p1y = py + iy;
+        const p2x = px - ix, p2y = py - iy;
+
+        const angA1 = Math.atan2(p1y - y1, p1x - x1);
+        const angA2 = Math.atan2(p2y - y1, p2x - x1);
+        const angB1 = Math.atan2(p1y - y2, p1x - x2);
+        const angB2 = Math.atan2(p2y - y2, p2x - x2);
+
+        ctx.beginPath();
+        ctx.arc(x1, y1, r1, angA1, angA2, false);
+        ctx.arc(x2, y2, r2, angB2, angB1, false);
+        ctx.closePath();
+        return true;
+    }
+
+    function drawHatchInsidePath(ctx, style) {
+        ctx.save();
+        ctx.clip();
+
+        const bbox = ctx.canvas.getBoundingClientRect();
+        const cw = ctx.canvas.width / (window.devicePixelRatio || 1);
+        const ch = ctx.canvas.height / (window.devicePixelRatio || 1);
+
+        const diag = Math.sqrt(cw * cw + ch * ch);
+        const cos = Math.cos(style.angle);
+        const sin = Math.sin(style.angle);
+        const cx = cw / 2;
+        const cy = ch / 2;
+
+        ctx.strokeStyle = style.line;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (let t = -diag; t <= diag; t += style.spacing) {
+            const sx = cx + (-diag) * cos + t * (-sin);
+            const sy = cy + (-diag) * sin + t * cos;
+            const ex = cx + diag * cos + t * (-sin);
+            const ey = cy + diag * sin + t * cos;
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(ex, ey);
+        }
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function drawAllOverlapHighlights(mapCtx, state) {
+        const scaled = [];
+        state.explosions.forEach(function (exp) {
+            if (!exp.explosionCenter || !exp.radii) return;
+            const circles = {};
+            ZONE_DEFS.forEach(function (zone) {
+                circles[zone.key] = exp.radii[zone.key] * state.scale;
+            });
+            scaled.push({ cx: exp.explosionCenter.x, cy: exp.explosionCenter.y, r: circles });
+        });
+
+        if (scaled.length < 2) return;
+
+        ZONE_DEFS.forEach(function (zone) {
+            const zk = zone.key;
+            const style = OVERLAY_HATCH_COLORS[zk];
+            for (let i = 0; i < scaled.length; i++) {
+                for (let j = i + 1; j < scaled.length; j++) {
+                    const A = scaled[i];
+                    const B = scaled[j];
+                    const rA = A.r[zk];
+                    const rB = B.r[zk];
+                    if (rA <= 1 || rB <= 1) continue;
+
+                    const hasIntersection = buildCircleIntersectionPath(mapCtx, A.cx, A.cy, rA, B.cx, B.cy, rB);
+                    if (hasIntersection) {
+                        mapCtx.fillStyle = style.fill;
+                        mapCtx.fill();
+                        drawHatchInsidePath(mapCtx, style);
+                    }
+                }
+            }
         });
     }
 
