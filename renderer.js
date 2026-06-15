@@ -255,36 +255,38 @@
         2: null,
         3: {
             fillBase: [
-                'rgba(255, 255, 255, 0.08)',
-                'rgba(255, 255, 255, 0.10)',
-                'rgba(255, 255, 255, 0.11)',
-                'rgba(255, 255, 255, 0.12)',
-                'rgba(255, 255, 255, 0.13)',
-                'rgba(255, 255, 255, 0.14)'
+                'rgba(255, 255, 255, 0.25)',
+                'rgba(255, 255, 255, 0.27)',
+                'rgba(255, 255, 255, 0.29)',
+                'rgba(255, 255, 255, 0.30)',
+                'rgba(255, 255, 255, 0.31)',
+                'rgba(255, 255, 255, 0.33)'
             ],
             hatch2: true,
-            lineAlpha: 0.70,
+            lineAlpha: 0.85,
+            lineWidth: 2.0,
             spacing2: 6,
-            strokeOutline: true,
-            outlineColor: 'rgba(255, 255, 255, 0.28)',
-            outlineWidth: 1.2,
+            outline: true,
+            outlineColor: 'rgba(255, 255, 255, 0.55)',
+            outlineWidth: 2.0,
             label: '3圆'
         },
         4: {
             fillBase: [
-                'rgba(255, 220, 80, 0.22)',
-                'rgba(255, 210, 70, 0.24)',
-                'rgba(255, 200, 60, 0.26)',
-                'rgba(255, 190, 50, 0.28)',
-                'rgba(255, 180, 40, 0.30)',
-                'rgba(255, 170, 30, 0.32)'
+                'rgba(255, 220, 80, 0.28)',
+                'rgba(255, 210, 70, 0.30)',
+                'rgba(255, 200, 60, 0.32)',
+                'rgba(255, 190, 50, 0.34)',
+                'rgba(255, 180, 40, 0.36)',
+                'rgba(255, 170, 30, 0.38)'
             ],
             hatch2: true,
-            lineAlpha: 0.85,
+            lineAlpha: 0.92,
+            lineWidth: 2.2,
             spacing2: 5,
-            border: true,
-            borderColor: 'rgba(255, 230, 120, 0.75)',
-            borderWidth: 2.0,
+            outline: true,
+            outlineColor: 'rgba(255, 230, 120, 0.80)',
+            outlineWidth: 2.5,
             label: '4圆+'
         }
     };
@@ -345,7 +347,7 @@
                 lineColor = 'rgba(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ',' + lvlStyle.lineAlpha + ')';
             }
             ctx.strokeStyle = lineColor;
-            ctx.lineWidth = 1.3;
+            ctx.lineWidth = lvlStyle.lineWidth || 1.5;
             ctx.beginPath();
             const angle2 = -baseStyle.angle + Math.PI / 2;
             const cos1 = Math.cos(baseStyle.angle);
@@ -365,21 +367,28 @@
             ctx.stroke();
         }
 
-        if (lvlStyle.border) {
-            ctx.strokeStyle = lvlStyle.borderColor;
-            ctx.lineWidth = lvlStyle.borderWidth || 1.5;
-            ctx.setLineDash([3, 2]);
-            ctx.strokeRect(0, 0, cw, ch);
-            ctx.setLineDash([]);
-        }
-
-        if (lvlStyle.strokeOutline) {
-            ctx.strokeStyle = lvlStyle.outlineColor;
-            ctx.lineWidth = lvlStyle.outlineWidth || 1.0;
-            ctx.strokeRect(0, 0, cw, ch);
-        }
-
         ctx.restore();
+
+        if (lvlStyle.outline) {
+            const color = lvlStyle.outlineColor;
+            const width = lvlStyle.outlineWidth || 2.0;
+            const k = circles.length;
+            for (let i = 0; i < k; i++) {
+                ctx.save();
+                for (let j = 0; j < k; j++) {
+                    if (j === i) continue;
+                    ctx.beginPath();
+                    ctx.arc(circles[j].cx, circles[j].cy, circles[j].r, 0, Math.PI * 2);
+                    ctx.clip();
+                }
+                ctx.beginPath();
+                ctx.arc(circles[i].cx, circles[i].cy, circles[i].r, 0, Math.PI * 2);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
     }
 
     function buildCircleIntersectionPath(ctx, x1, y1, r1, x2, y2, r2) {
