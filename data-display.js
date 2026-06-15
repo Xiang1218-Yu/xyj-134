@@ -13,15 +13,17 @@
     }
 
     function formatNumber(num) {
+        if (!isFinite(num)) return '0';
         if (num >= 100000000) return (num / 100000000).toFixed(2) + ' 亿';
         if (num >= 10000) return (num / 10000).toFixed(1) + ' 万';
-        return num.toLocaleString();
+        return Math.round(num).toLocaleString();
     }
 
     const elementIds = [
         'fireballRadius', 'fireballDiameter', 'radiationRadius',
         'severeRadius', 'moderateRadius', 'lightRadius', 'thermalRadius',
-        'estimatedDeaths', 'estimatedInjured', 'affectedArea', 'energyReleased'
+        'estimatedDeaths', 'estimatedInjured', 'affectedArea', 'energyReleased',
+        'statExplosionCount', 'statCombinedArea', 'statTotalArea', 'statOverlapArea'
     ];
 
     function getElements() {
@@ -32,33 +34,100 @@
         return elements;
     }
 
+    function getSelectedExplosion(state) {
+        if (!state.selectedExplosionId) return null;
+        return state.explosions.find(function (e) { return e.id === state.selectedExplosionId; }) || null;
+    }
+
+    function updateRadiiDisplay(elements, radii) {
+        if (!radii) radii = { fireball:0, radiation:0, severe:0, moderate:0, light:0, thermal:0 };
+        elements.fireballRadius.textContent = radii.fireball.toFixed(2);
+        elements.fireballDiameter.textContent = (radii.fireball * 2).toFixed(2);
+        elements.radiationRadius.textContent = radii.radiation.toFixed(2);
+        elements.severeRadius.textContent = radii.severe.toFixed(2);
+        elements.moderateRadius.textContent = radii.moderate.toFixed(2);
+        elements.lightRadius.textContent = radii.light.toFixed(2);
+        elements.thermalRadius.textContent = radii.thermal.toFixed(2);
+    }
+
+    function updateCombinedStats(elements, stats) {
+        elements.statExplosionCount.textContent = stats.count;
+        elements.statCombinedArea.textContent = formatNumber(stats.combinedArea);
+        elements.statTotalArea.textContent = formatNumber(stats.totalArea);
+        elements.statOverlapArea.textContent = formatNumber(stats.overlapArea);
+    }
+
     function updateDataDisplay(elements, state) {
-        if (!state.radii) return;
+        const viewMode = state.viewMode || 'combined';
 
-        const r = state.radii;
-        elements.fireballRadius.textContent = r.fireball.toFixed(2);
-        elements.fireballDiameter.textContent = (r.fireball * 2).toFixed(2);
-        elements.radiationRadius.textContent = r.radiation.toFixed(2);
-        elements.severeRadius.textContent = r.severe.toFixed(2);
-        elements.moderateRadius.textContent = r.moderate.toFixed(2);
-        elements.lightRadius.textContent = r.light.toFixed(2);
-        elements.thermalRadius.textContent = r.thermal.toFixed(2);
+        if (!state.explosions || state.explosions.length === 0) {
+            updateRadiiDisplay(elements, null);
+            elements.estimatedDeaths.textContent = '0';
+            elements.estimatedInjured.textContent = '0';
+            elements.affectedArea.textContent = '0';
+            elements.energyReleased.textContent = '0';
+            updateCombinedStats(elements, { count: 0, combinedArea: 0, totalArea: 0, overlapArea: 0 });
+            return;
+        }
 
-        const W_terajoules = global.Physics.calculateEnergy(state.yieldKilotons);
-        elements.energyReleased.textContent = formatNumber(W_terajoules);
+        if (viewMode === 'selected') {
+            const selected = getSelectedExplosion(state);
+            if (selected) {
+                const r = selected.radii || global.Physics.calculateRadii(selected.yieldKilotons, selected.burstHeight);
+                updateRadiiDisplay(elements, r);
 
-        const totalArea = global.Physics.calculateAffectedArea(r);
-        elements.affectedArea.textContent = formatNumber(totalArea);
+                const casualties = global.Physics.calculateCasualties(
+                    state.cities,
+                    selected.explosionCenter,
+                    r,
+                    state.scale
+                );
+                elements.estimatedDeaths.textContent = formatNumber(casualties.deaths);
+                elements.estimatedInjured.textContent = formatNumber(casualties.injured);
 
-        const casualties = global.Physics.calculateCasualties(
-            state.cities,
-            state.explosionCenter,
-            state.radii,
-            state.scale
-        );
+                const area = global.Physics.calculateAffectedArea(r);
+                elements.affectedArea.textContent = formatNumber(area);
 
-        elements.estimatedDeaths.textContent = formatNumber(casualties.deaths);
-        elements.estimatedInjured.textContent = formatNumber(casualties.injured);
+                const energy = global.Physics.calculateEnergy(selected.yieldKilotons);
+                elements.energyReleased.textContent = formatNumber(energy);
+            } else {
+                updateRadiiDisplay(elements, null);
+                elements.estimatedDeaths.textContent = '0';
+                elements.estimatedInjured.textContent = '0';
+                elements.affectedArea.textContent = '0';
+                elements.energyReleased.textContent = '0';
+            }
+        } else {
+            const stats = global.Physics.calculateAllCombinedStats(state.explosions, state.scale);
+
+            const casualties = global.Physics.calculateCombinedCasualties(
+                state.cities,
+                state.explosions,
+                state.scale
+            );
+
+            const maxRadiiPerZone = getMaxRadiiAcrossExplosions(state.explosions);
+            updateRadiiDisplay(elements, maxRadiiPerZone);
+
+            elements.estimatedDeaths.textContent = formatNumber(casualties.deaths);
+            elements.estimatedInjured.textContent = formatNumber(casualties.injured);
+            elements.affectedArea.textContent = formatNumber(stats.combinedArea);
+            elements.energyReleased.textContent = formatNumber(stats.totalEnergy);
+
+            updateCombinedStats(elements, stats);
+        }
+    }
+
+    function getMaxRadiiAcrossExplosions(explosions) {
+        const keys = ['fireball', 'radiation', 'severe', 'moderate', 'light', 'thermal'];
+        const result = { fireball: 0, radiation: 0, severe: 0, moderate: 0, light: 0, thermal: 0 };
+        explosions.forEach(function (exp) {
+            if (!exp.radii) return;
+            keys.forEach(function (k) {
+                if (exp.radii[k] > result[k]) result[k] = exp.radii[k];
+            });
+        });
+        return result;
     }
 
     global.DataDisplay = {

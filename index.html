@@ -19,7 +19,24 @@
         <div class="main-content">
             <aside class="control-panel">
                 <section class="panel-section">
-                    <h2>爆炸参数</h2>
+                    <h2>爆炸点管理</h2>
+                    <div class="explosion-list" id="explosionList"></div>
+                    <div class="explosion-actions">
+                        <button id="addExplosionBtn" class="add-btn">
+                            <span class="btn-icon">+</span> 添加爆炸点
+                        </button>
+                        <button id="removeExplosionBtn" class="remove-btn">
+                            <span class="btn-icon">−</span> 删除选中
+                        </button>
+                    </div>
+                    <div class="explosion-info" id="explosionInfo">
+                        <span class="info-text">当前爆炸点数量：</span>
+                        <span class="info-count" id="explosionCount">0</span>
+                    </div>
+                </section>
+
+                <section class="panel-section">
+                    <h2>爆炸参数 <span class="param-target" id="paramTarget">（爆炸点 #1）</span></h2>
                     
                     <div class="form-group">
                         <label>核弹类型</label>
@@ -73,20 +90,21 @@
                 <section class="panel-section action-section">
                     <button id="detonateBtn" class="detonate-btn">
                         <span class="btn-icon">💥</span>
-                        引爆核弹
+                        同时引爆所有
                     </button>
                     <button id="resetBtn" class="reset-btn">
                         <span class="btn-icon">↺</span>
-                        重置
+                        清空所有
                     </button>
                 </section>
 
                 <section class="panel-section">
                     <h2>使用说明</h2>
                     <ul class="instructions">
-                        <li>点击地图任意位置设置爆炸中心</li>
-                        <li>选择核弹类型或手动调整当量</li>
-                        <li>点击「引爆核弹」观看爆炸过程</li>
+                        <li>点击「添加爆炸点」创建新爆炸点</li>
+                        <li>选中爆炸点后，点击地图设置位置</li>
+                        <li>每个爆炸点可独立设置当量/类型/高度</li>
+                        <li>点击「同时引爆所有」触发联合动画</li>
                         <li>数据仅供科普参考</li>
                     </ul>
                 </section>
@@ -184,7 +202,13 @@
                 </div>
 
                 <div class="casualty-panel" id="casualtyPanel">
-                    <h3>📊 影响预估</h3>
+                    <div class="panel-header">
+                        <h3>📊 影响预估</h3>
+                        <div class="view-toggle">
+                            <button class="toggle-btn active" data-view="combined">联合影响</button>
+                            <button class="toggle-btn" data-view="selected">选中爆炸点</button>
+                        </div>
+                    </div>
                     <div class="casualty-grid">
                         <div class="casualty-item">
                             <span class="casualty-icon">💀</span>
@@ -210,9 +234,27 @@
                         <div class="casualty-item">
                             <span class="casualty-icon">⚡</span>
                             <div>
-                                <div class="casualty-label">释放能量</div>
+                                <div class="casualty-label">总释放能量</div>
                                 <div class="casualty-value"><span id="energyReleased">0</span> TJ</div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="combined-stats" id="combinedStats">
+                        <div class="stat-row">
+                            <span class="stat-label">爆炸点数量</span>
+                            <span class="stat-value" id="statExplosionCount">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">联合覆盖面积（去重）</span>
+                            <span class="stat-value"><span id="statCombinedArea">0</span> km²</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">总面积累加（含重叠）</span>
+                            <span class="stat-value"><span id="statTotalArea">0</span> km²</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">重叠区域面积</span>
+                            <span class="stat-value"><span id="statOverlapArea">0</span> km²</span>
                         </div>
                     </div>
                 </div>

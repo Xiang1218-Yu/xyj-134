@@ -1,19 +1,40 @@
 (function () {
     'use strict';
 
+    let explosionIdCounter = 0;
+
+    function createExplosion(defaults) {
+        explosionIdCounter++;
+        return Object.assign({
+            id: explosionIdCounter,
+            bombType: 'castle_bravo',
+            yieldKilotons: 15000,
+            burstHeight: 1000,
+            explosionCenter: null,
+            radii: null
+        }, defaults || {});
+    }
+
     const state = {
-        bombType: 'castle_bravo',
-        yieldKilotons: 15000,
-        burstHeight: 1000,
+        explosions: [],
+        selectedExplosionId: null,
+        viewMode: 'combined',
         scale: 20,
         showLabels: true,
         showLegend: true,
-        explosionCenter: null,
         isAnimating: false,
         animationId: null,
-        radii: null,
         cities: []
     };
+
+    function getSelectedExplosion() {
+        if (!state.selectedExplosionId) return null;
+        return state.explosions.find(function (e) { return e.id === state.selectedExplosionId; }) || null;
+    }
+
+    function getExplosionById(id) {
+        return state.explosions.find(function (e) { return e.id === id; }) || null;
+    }
 
     const mapCanvas = document.getElementById('mapCanvas');
     const effectCanvas = document.getElementById('effectCanvas');
@@ -29,19 +50,32 @@
 
         window.Renderer.setupCanvas(mapCanvas, effectCanvas, mapCtx, effectCtx, mapWrapper, state);
         window.UI.setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, mapWrapper, flashOverlay, mapHint);
-        window.UI.updateCalculations(state);
-        window.DataDisplay.updateDataDisplay(dataElements, state);
 
         const rect = mapWrapper.getBoundingClientRect();
-        state.explosionCenter = {
-            x: rect.width / 2,
-            y: rect.height / 2
-        };
+        const firstExplosion = createExplosion({
+            explosionCenter: {
+                x: rect.width / 2,
+                y: rect.height / 2
+            }
+        });
+        firstExplosion.radii = window.Physics.calculateRadii(firstExplosion.yieldKilotons, firstExplosion.burstHeight);
+        state.explosions.push(firstExplosion);
+        state.selectedExplosionId = firstExplosion.id;
+
         mapHint.classList.add('hidden');
-        window.UI.updateCalculations(state);
+
+        window.UI.refreshExplosionList(state, elements);
+        window.UI.syncControlsFromSelected(state, elements);
+        window.UI.updateAllCalculations(state);
         window.DataDisplay.updateDataDisplay(dataElements, state);
         window.Renderer.drawMap(mapCtx, mapWrapper, state);
     }
+
+    window.App = {
+        createExplosion: createExplosion,
+        getSelectedExplosion: getSelectedExplosion,
+        getExplosionById: getExplosionById
+    };
 
     document.addEventListener('DOMContentLoaded', init);
 })();

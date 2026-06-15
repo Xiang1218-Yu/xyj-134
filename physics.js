@@ -12,8 +12,9 @@
         castle_bravo: { yield: 15000, name: '喝彩城堡' }
     };
 
+    const ZONE_PRIORITY = ['fireball', 'radiation', 'severe', 'moderate', 'light', 'thermal'];
+
     function calculateRadii(yieldKilotons, burstHeight) {
-        const W = yieldKilotons;
         const W_megatons = yieldKilotons / 1000;
 
         const fireballRadius = 0.14 * Math.pow(W_megatons, 0.4);
@@ -98,6 +99,49 @@
         return roads;
     }
 
+    function getWorstZoneForCity(city, explosions, scale) {
+        let worstZoneIndex = -1;
+
+        explosions.forEach(function (exp) {
+            if (!exp.explosionCenter || !exp.radii) return;
+            const dx = city.x - exp.explosionCenter.x;
+            const dy = city.y - exp.explosionCenter.y;
+            const distPx = Math.sqrt(dx * dx + dy * dy);
+            const distKm = distPx / scale;
+
+            for (let i = 0; i < ZONE_PRIORITY.length; i++) {
+                const zoneName = ZONE_PRIORITY[i];
+                if (distKm <= exp.radii[zoneName]) {
+                    if (worstZoneIndex < 0 || i < worstZoneIndex) {
+                        worstZoneIndex = i;
+                    }
+                    break;
+                }
+            }
+        });
+
+        return worstZoneIndex >= 0 ? ZONE_PRIORITY[worstZoneIndex] : null;
+    }
+
+    function calculateCasualtiesForZone(pop, zoneName) {
+        switch (zoneName) {
+            case 'fireball':
+                return { deaths: pop * 0.99, injured: 0, destroyed: true };
+            case 'radiation':
+                return { deaths: pop * 0.85, injured: pop * 0.1, destroyed: true };
+            case 'severe':
+                return { deaths: pop * 0.5, injured: pop * 0.4, destroyed: true };
+            case 'moderate':
+                return { deaths: pop * 0.15, injured: pop * 0.5, destroyed: false };
+            case 'light':
+                return { deaths: pop * 0.02, injured: pop * 0.2, destroyed: false };
+            case 'thermal':
+                return { deaths: 0, injured: pop * 0.05, destroyed: false };
+            default:
+                return { deaths: 0, injured: 0, destroyed: false };
+        }
+    }
+
     function calculateCasualties(cities, explosionCenter, radii, scale) {
         let deaths = 0;
         let injured = 0;
@@ -142,22 +186,161 @@
         };
     }
 
+    function calculateCombinedCasualties(cities, explosions, scale) {
+        let deaths = 0;
+        let injured = 0;
+
+        if (!explosions || explosions.length === 0 || !cities || cities.length === 0) {
+            return { deaths: 0, injured: 0 };
+        }
+
+        cities.forEach(function (city) {
+            const worstZone = getWorstZoneForCity(city, explosions, scale);
+            if (!worstZone) return;
+
+            const pop = city.population;
+            const result = calculateCasualtiesForZone(pop, worstZone);
+            deaths += result.deaths;
+            injured += result.injured;
+            if (result.destroyed) city.destroyed = true;
+        });
+
+        return {
+            deaths: Math.round(deaths),
+            injured: Math.round(injured)
+        };
+    }
+
     function calculateEnergy(yieldKilotons) {
         return Math.round(yieldKilotons * 4.184);
+    }
+
+    function calculateTotalEnergy(explosions) {
+        let total = 0;
+        explosions.forEach(function (exp) {
+            total += calculateEnergy(exp.yieldKilotons);
+        });
+        return Math.round(total);
     }
 
     function calculateAffectedArea(radii) {
         return Math.round(Math.PI * radii.thermal * radii.thermal);
     }
 
+    function circleIntersectionArea(d, r1, r2) {
+        if (d >= r1 + r2) return 0;
+        if (d <= Math.abs(r1 - r2)) return Math.PI * Math.min(r1, r2) * Math.min(r1, r2);
+
+        const r1sq = r1 * r1;
+        const r2sq = r2 * r2;
+        const dsq = d * d;
+
+        const a1 = Math.acos((dsq + r1sq - r2sq) / (2 * d * r1));
+        const a2 = Math.acos((dsq + r2sq - r1sq) / (2 * d * r2));
+
+        const part1 = r1sq * a1;
+        const part2 = r2sq * a2;
+        const part3 = 0.5 * Math.sqrt((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2));
+
+        return part1 + part2 - part3;
+    }
+
+    function calculateCircleUnionAreaInclusion(circles) {
+        const n = circles.length;
+        if (n === 0) return 0;
+        if (n === 1) return Math.PI * circles[0].r * circles[0].r;
+
+        let totalArea = 0;
+        circles.forEach(function (c) {
+            totalArea += Math.PI * c.r * c.r;
+        });
+
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                const dx = circles[i].x - circles[j].x;
+                const dy = circles[i].y - circles[j].y;
+                const d = Math.sqrt(dx * dx + dy * dy);
+                totalArea -= circleIntersectionArea(d, circles[i].r, circles[j].r);
+            }
+        }
+
+        return Math.max(0, totalArea);
+    }
+
+    function calculateCombinedAreaPerZone(explosions, scale, zoneName) {
+        const circles = [];
+        explosions.forEach(function (exp) {
+            if (!exp.explosionCenter || !exp.radii) return;
+            const radiusPx = exp.radii[zoneName] * scale;
+            circles.push({
+                x: exp.explosionCenter.x,
+                y: exp.explosionCenter.y,
+                r: radiusPx
+            });
+        });
+
+        const unionAreaPx = calculateCircleUnionAreaInclusion(circles);
+        const kmPerPx = 1 / scale;
+        const km2PerPx2 = kmPerPx * kmPerPx;
+        return Math.round(unionAreaPx * km2PerPx2);
+    }
+
+    function calculateCombinedArea(explosions, scale) {
+        return calculateCombinedAreaPerZone(explosions, scale, 'thermal');
+    }
+
+    function calculateTotalAreaSum(explosions) {
+        let total = 0;
+        explosions.forEach(function (exp) {
+            if (!exp.radii) return;
+            total += calculateAffectedArea(exp.radii);
+        });
+        return total;
+    }
+
+    function calculateOverlapArea(explosions, scale) {
+        const combined = calculateCombinedArea(explosions, scale);
+        const sum = calculateTotalAreaSum(explosions);
+        return Math.max(0, sum - combined);
+    }
+
+    function calculateAllCombinedStats(explosions, scale) {
+        const thermalCombined = calculateCombinedAreaPerZone(explosions, scale, 'thermal');
+        const totalArea = calculateTotalAreaSum(explosions);
+        return {
+            count: explosions.filter(function (e) { return e.explosionCenter; }).length,
+            combinedArea: thermalCombined,
+            totalArea: totalArea,
+            overlapArea: Math.max(0, totalArea - thermalCombined),
+            totalEnergy: calculateTotalEnergy(explosions),
+            perZone: {
+                fireball: calculateCombinedAreaPerZone(explosions, scale, 'fireball'),
+                radiation: calculateCombinedAreaPerZone(explosions, scale, 'radiation'),
+                severe: calculateCombinedAreaPerZone(explosions, scale, 'severe'),
+                moderate: calculateCombinedAreaPerZone(explosions, scale, 'moderate'),
+                light: calculateCombinedAreaPerZone(explosions, scale, 'light'),
+                thermal: thermalCombined
+            }
+        };
+    }
+
     global.Physics = {
         BOMB_TYPES: BOMB_TYPES,
+        ZONE_PRIORITY: ZONE_PRIORITY,
         calculateRadii: calculateRadii,
         generateCities: generateCities,
         generateRoads: generateRoads,
         calculateCasualties: calculateCasualties,
+        calculateCombinedCasualties: calculateCombinedCasualties,
+        getWorstZoneForCity: getWorstZoneForCity,
         calculateEnergy: calculateEnergy,
-        calculateAffectedArea: calculateAffectedArea
+        calculateTotalEnergy: calculateTotalEnergy,
+        calculateAffectedArea: calculateAffectedArea,
+        calculateCombinedArea: calculateCombinedArea,
+        calculateTotalAreaSum: calculateTotalAreaSum,
+        calculateOverlapArea: calculateOverlapArea,
+        calculateAllCombinedStats: calculateAllCombinedStats,
+        calculateCombinedAreaPerZone: calculateCombinedAreaPerZone
     };
 
 })(window);
