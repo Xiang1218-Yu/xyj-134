@@ -87,6 +87,59 @@
                     </div>
                 </section>
 
+                <section class="panel-section terrain-section">
+                    <h2>🏔️ 地形高程设置</h2>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="terrainEnabled" checked>
+                        <label for="terrainEnabled">启用地形衰减</label>
+                    </div>
+                    <div class="form-group">
+                        <label>地形预设</label>
+                        <select id="terrainPreset">
+                            <option value="flat">平坦地形（无衰减）</option>
+                            <option value="gentle">丘陵地形（轻微影响）</option>
+                            <option value="mountainous" selected>多山地形（显著影响）</option>
+                            <option value="extreme">极端地形（强烈影响）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>地形强度倍率</label>
+                        <input type="range" id="terrainIntensity" min="0.1" max="2" step="0.1" value="1">
+                        <div class="slider-value"><span id="terrainIntensityValue">1.0</span> x</div>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="showTerrainHeatmap" checked>
+                        <label for="showTerrainHeatmap">显示地形热力图</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="showTerrainContours" checked>
+                        <label for="showTerrainContours">显示等高线</label>
+                    </div>
+                    <div class="terrain-actions">
+                        <button id="regenerateTerrainBtn" class="regenerate-btn">
+                            <span class="btn-icon">🎲</span> 重新生成地形
+                        </button>
+                    </div>
+                    <div class="terrain-info" id="terrainInfo">
+                        <div class="terrain-info-row">
+                            <span>山脉:</span>
+                            <span id="mountainCount">0</span>
+                        </div>
+                        <div class="terrain-info-row">
+                            <span>丘陵:</span>
+                            <span id="hillCount">0</span>
+                        </div>
+                        <div class="terrain-info-row">
+                            <span>盆地:</span>
+                            <span id="basinCount">0</span>
+                        </div>
+                        <div class="terrain-info-row">
+                            <span>最高海拔:</span>
+                            <span id="maxElevation">0</span> m
+                        </div>
+                    </div>
+                </section>
+
                 <section class="panel-section action-section">
                     <button id="detonateBtn" class="detonate-btn">
                         <span class="btn-icon">💥</span>
@@ -107,6 +160,8 @@
                         <li>每个爆炸点可独立设置当量/类型/高度</li>
                         <li>交叉阴影表示多个爆炸点叠加覆盖区</li>
                         <li>点击「同时引爆所有」触发联合动画</li>
+                        <li>🏔️ <strong>地形影响</strong>：山脉/丘陵会阻挡冲击波和辐射</li>
+                        <li>🎲 可在「地形高程设置」中切换预设和重新生成</li>
                         <li>数据仅供科普参考</li>
                     </ul>
                 </section>

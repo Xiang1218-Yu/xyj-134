@@ -60,8 +60,18 @@
         mapCtx.clearRect(0, 0, width, height);
 
         drawTerrain(mapCtx, width, height);
+
+        if (state.showTerrainHeatmap) {
+            drawTerrainHeatmap(mapCtx, width, height, state.terrainData);
+        }
+
         drawGrid(mapCtx, width, height, state.scale);
         drawWaterBodies(mapCtx, width, height);
+
+        if (state.showTerrainContours) {
+            drawTerrainContours(mapCtx, width, height, state.terrainData);
+        }
+
         drawRoadsLayer(mapCtx, width, height, state.cities);
         drawCities(mapCtx, state);
         drawExplosionZones(mapCtx, width, height, state);
@@ -97,6 +107,225 @@
             mapCtx.fill();
         }
         mapCtx.globalAlpha = 1;
+    }
+
+    function getTerrainColor(elevation) {
+        if (elevation <= -100) {
+            return { r: 30, g: 50, b: 90 };
+        } else if (elevation <= 0) {
+            const t = (elevation - (-100)) / 100;
+            return {
+                r: Math.round(30 + t * 40),
+                g: Math.round(50 + t * 40),
+                b: Math.round(90 - t * 40)
+            };
+        } else if (elevation <= 200) {
+            const t = elevation / 200;
+            return {
+                r: Math.round(70 + t * 20),
+                g: Math.round(90 + t * 50),
+                b: Math.round(50 - t * 10)
+            };
+        } else if (elevation <= 800) {
+            const t = (elevation - 200) / 600;
+            return {
+                r: Math.round(90 + t * 60),
+                g: Math.round(140 + t * 30),
+                b: Math.round(40 - t * 10)
+            };
+        } else if (elevation <= 2000) {
+            const t = (elevation - 800) / 1200;
+            return {
+                r: Math.round(150 + t * 60),
+                g: Math.round(170 - t * 30),
+                b: Math.round(30 + t * 30)
+            };
+        } else if (elevation <= 4000) {
+            const t = (elevation - 2000) / 2000;
+            return {
+                r: Math.round(210 + t * 30),
+                g: Math.round(140 - t * 30),
+                b: Math.round(60 + t * 50)
+            };
+        } else {
+            const t = Math.min(1, (elevation - 4000) / 3000);
+            return {
+                r: Math.round(240 - t * 20),
+                g: Math.round(110 + t * 130),
+                b: Math.round(110 + t * 130)
+            };
+        }
+    }
+
+    function drawTerrainHeatmap(mapCtx, width, height, terrain) {
+        if (!terrain || !terrain.features || terrain.features.length === 0) return;
+
+        const step = 8;
+        for (let y = 0; y < height; y += step) {
+            for (let x = 0; x < width; x += step) {
+                const elev = global.Physics.getElevationAt(x + step / 2, y + step / 2, terrain);
+                if (Math.abs(elev) < 5) continue;
+
+                const color = getTerrainColor(elev);
+                const intensity = Math.min(0.35, Math.abs(elev) / 8000 + 0.05);
+                mapCtx.fillStyle = rgba(color.r, color.g, color.b, intensity);
+                mapCtx.fillRect(x, y, step, step);
+            }
+        }
+
+        const FEATURE_TYPES = global.Physics.TERRAIN_FEATURE_TYPES;
+        terrain.features.forEach(function (f) {
+            if (f.type === FEATURE_TYPES.MOUNTAIN) {
+                const innerGrad = mapCtx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.radius * 1.2);
+                innerGrad.addColorStop(0, rgba(200, 180, 160, 0.2));
+                innerGrad.addColorStop(0.3, rgba(180, 120, 90, 0.15));
+                innerGrad.addColorStop(0.7, rgba(90, 130, 60, 0.1));
+                innerGrad.addColorStop(1, rgba(0, 0, 0, 0));
+                mapCtx.fillStyle = innerGrad;
+                mapCtx.beginPath();
+                mapCtx.arc(f.x, f.y, f.radius * 1.2, 0, Math.PI * 2);
+                mapCtx.fill();
+
+                mapCtx.strokeStyle = rgba(255, 255, 255, 0.35);
+                mapCtx.lineWidth = 1.5;
+                mapCtx.beginPath();
+                mapCtx.arc(f.x, f.y, f.radius * 0.25, 0, Math.PI * 2);
+                mapCtx.stroke();
+            } else if (f.type === FEATURE_TYPES.HILL) {
+                const grad = mapCtx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.radius);
+                grad.addColorStop(0, rgba(140, 160, 80, 0.18));
+                grad.addColorStop(0.6, rgba(100, 130, 60, 0.1));
+                grad.addColorStop(1, rgba(0, 0, 0, 0));
+                mapCtx.fillStyle = grad;
+                mapCtx.beginPath();
+                mapCtx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+                mapCtx.fill();
+            } else if (f.type === FEATURE_TYPES.BASIN) {
+                const grad = mapCtx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.radius * 1.5);
+                grad.addColorStop(0, rgba(60, 100, 140, 0.25));
+                grad.addColorStop(0.5, rgba(40, 70, 110, 0.15));
+                grad.addColorStop(1, rgba(0, 0, 0, 0));
+                mapCtx.fillStyle = grad;
+                mapCtx.beginPath();
+                mapCtx.arc(f.x, f.y, f.radius * 1.5, 0, Math.PI * 2);
+                mapCtx.fill();
+            }
+        });
+
+        terrain.features.forEach(function (f) {
+            if (f.height > 1000) {
+                const dx = f.radius * 0.6;
+                const dy = f.radius * 0.6;
+                mapCtx.fillStyle = 'rgba(255,255,255,0.03)';
+                mapCtx.beginPath();
+                mapCtx.moveTo(f.x - dx, f.y + dy);
+                mapCtx.lineTo(f.x + dx, f.y + dy);
+                mapCtx.lineTo(f.x, f.y - dy * 0.8);
+                mapCtx.closePath();
+                mapCtx.fill();
+            }
+        });
+    }
+
+    function drawTerrainContours(mapCtx, width, height, terrain) {
+        if (!terrain || !terrain.features || terrain.features.length === 0) return;
+
+        const contourLevels = [300, 600, 1000, 1500, 2500, 4000];
+        const contourColors = [
+            rgba(100, 180, 100, 0.25),
+            rgba(140, 170, 80, 0.28),
+            rgba(180, 150, 60, 0.30),
+            rgba(200, 120, 80, 0.32),
+            rgba(200, 90, 110, 0.35),
+            rgba(180, 180, 220, 0.40)
+        ];
+
+        const step = 5;
+
+        contourLevels.forEach(function (level, levelIdx) {
+            mapCtx.strokeStyle = contourColors[levelIdx];
+            mapCtx.lineWidth = levelIdx >= 4 ? 1.2 : 0.8;
+            mapCtx.beginPath();
+
+            for (let y = step; y < height - step; y += step * 2) {
+                for (let x = step; x < width - step; x += step * 2) {
+                    const e0 = global.Physics.getElevationAt(x, y, terrain);
+                    const e1 = global.Physics.getElevationAt(x + step, y, terrain);
+                    const e2 = global.Physics.getElevationAt(x + step, y + step, terrain);
+                    const e3 = global.Physics.getElevationAt(x, y + step, terrain);
+
+                    let crossings = [];
+                    const pairs = [
+                        [e0, e1, x, y, x + step, y],
+                        [e1, e2, x + step, y, x + step, y + step],
+                        [e2, e3, x + step, y + step, x, y + step],
+                        [e3, e0, x, y + step, x, y]
+                    ];
+
+                    pairs.forEach(function (pair) {
+                        const [ea, eb, xa, ya, xb, yb] = pair;
+                        if ((ea < level && eb >= level) || (ea >= level && eb < level)) {
+                            const t = (level - ea) / (eb - ea);
+                            crossings.push({
+                                x: xa + (xb - xa) * t,
+                                y: ya + (yb - ya) * t
+                            });
+                        }
+                    });
+
+                    if (crossings.length >= 2) {
+                        mapCtx.moveTo(crossings[0].x, crossings[0].y);
+                        mapCtx.lineTo(crossings[1].x, crossings[1].y);
+                    }
+                }
+            }
+            mapCtx.stroke();
+        });
+
+        const FEATURE_TYPES = global.Physics.TERRAIN_FEATURE_TYPES;
+        terrain.features.forEach(function (f) {
+            let label, color;
+            if (f.type === FEATURE_TYPES.MOUNTAIN && f.height > 1500) {
+                label = '▲ ' + Math.round(f.height) + 'm';
+                color = rgba(220, 220, 255, 0.7);
+            } else if (f.type === FEATURE_TYPES.BASIN && f.height < -200) {
+                label = '▼ ' + Math.round(Math.abs(f.height)) + 'm';
+                color = rgba(100, 160, 220, 0.7);
+            } else {
+                return;
+            }
+
+            if (f.radius > 40) {
+                mapCtx.font = '10px sans-serif';
+                mapCtx.textAlign = 'center';
+                mapCtx.fillStyle = rgba(0, 0, 0, 0.55);
+                const tw = mapCtx.measureText(label).width;
+                mapCtx.fillRect(f.x - tw / 2 - 3, f.y - 4, tw + 6, 13);
+                mapCtx.fillStyle = color;
+                mapCtx.fillText(label, f.x, f.y + 5);
+            }
+        });
+    }
+
+    function drawPolygonPathFromPoints(ctx, points, close) {
+        if (!points || points.length === 0) return;
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            const prev = points[i - 1];
+            const curr = points[i];
+            const midX = (prev.x + curr.x) / 2;
+            const midY = (prev.y + curr.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+        }
+        if (close !== false) {
+            const last = points[points.length - 1];
+            const first = points[0];
+            const midX = (last.x + first.x) / 2;
+            const midY = (last.y + first.y) / 2;
+            ctx.quadraticCurveTo(last.x, last.y, midX, midY);
+            ctx.closePath();
+        }
     }
 
     function drawGrid(mapCtx, width, height, scale) {
@@ -517,29 +746,78 @@
         const scale = state.scale;
         const radii = exp.radii;
         const isSelected = exp.id === state.selectedExplosionId;
+        const terrain = state.terrainData;
+        const useTerrain = terrain && terrain.features && terrain.features.length > 0;
+
+        const boundaryCache = {};
+        if (useTerrain) {
+            ZONE_DEFS.forEach(function (zone) {
+                boundaryCache[zone.key] = global.Physics.generateTerrainBoundaryPolygon(
+                    exp, zone.key, terrain, scale, 72
+                );
+            });
+        }
 
         ZONE_DEFS.forEach(function (zone) {
             const colors = getZoneColors(zone.key, tintIndex);
             const pxRadius = radii[zone.key] * scale;
 
-            mapCtx.beginPath();
-            mapCtx.arc(cx, cy, pxRadius, 0, Math.PI * 2);
-            mapCtx.fillStyle = colors.fill;
-            mapCtx.fill();
+            if (useTerrain && boundaryCache[zone.key]) {
+                const points = boundaryCache[zone.key];
+                drawPolygonPathFromPoints(mapCtx, points, true);
+                mapCtx.fillStyle = colors.fill;
+                mapCtx.fill();
 
-            mapCtx.strokeStyle = colors.border;
-            mapCtx.lineWidth = isSelected ? 2.5 : 1.5;
-            if (zone.dash) {
-                mapCtx.setLineDash(zone.dash);
+                drawPolygonPathFromPoints(mapCtx, points, true);
+                mapCtx.strokeStyle = colors.border;
+                mapCtx.lineWidth = isSelected ? 2.5 : 1.5;
+                if (zone.dash) {
+                    mapCtx.setLineDash(zone.dash);
+                } else {
+                    mapCtx.setLineDash([]);
+                }
+                mapCtx.stroke();
+                mapCtx.setLineDash([]);
             } else {
+                mapCtx.beginPath();
+                mapCtx.arc(cx, cy, pxRadius, 0, Math.PI * 2);
+                mapCtx.fillStyle = colors.fill;
+                mapCtx.fill();
+
+                mapCtx.strokeStyle = colors.border;
+                mapCtx.lineWidth = isSelected ? 2.5 : 1.5;
+                if (zone.dash) {
+                    mapCtx.setLineDash(zone.dash);
+                } else {
+                    mapCtx.setLineDash([]);
+                }
+                mapCtx.stroke();
                 mapCtx.setLineDash([]);
             }
-            mapCtx.stroke();
-            mapCtx.setLineDash([]);
 
             if (state.showLabels && pxRadius > 30 && isSelected) {
-                const labelX = cx + pxRadius * 0.707;
-                const labelY = cy - pxRadius * 0.707;
+                const labelAngle = -Math.PI / 4;
+                let labelRadius = pxRadius;
+                if (useTerrain && boundaryCache[zone.key]) {
+                    const points = boundaryCache[zone.key];
+                    let closestIdx = 0;
+                    let closestDiff = Infinity;
+                    for (let i = 0; i < points.length; i++) {
+                        const ang = points[i].angle;
+                        let diff = Math.abs(ang - labelAngle);
+                        if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                        if (diff < closestDiff) {
+                            closestDiff = diff;
+                            closestIdx = i;
+                        }
+                    }
+                    const pt = points[closestIdx];
+                    labelRadius = Math.sqrt(
+                        Math.pow(pt.x - cx, 2) + Math.pow(pt.y - cy, 2)
+                    );
+                }
+                const labelX = cx + Math.cos(labelAngle) * labelRadius * 0.8;
+                const labelY = cy + Math.sin(labelAngle) * labelRadius * 0.8;
                 const labelText = zone.label + ' ' + radii[zone.key].toFixed(1) + 'km';
                 const textWidth = mapCtx.measureText(labelText).width;
                 mapCtx.fillStyle = rgba(0, 0, 0, 0.6);

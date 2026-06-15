@@ -24,7 +24,14 @@
         showLegend: true,
         isAnimating: false,
         animationId: null,
-        cities: []
+        cities: [],
+        terrainEnabled: true,
+        terrainPreset: 'mountainous',
+        terrainIntensity: 1.0,
+        terrainSeed: Math.floor(Math.random() * 100000),
+        terrainData: null,
+        showTerrainContours: true,
+        showTerrainHeatmap: true
     };
 
     function getSelectedExplosion() {
@@ -44,6 +51,23 @@
     const flashOverlay = document.getElementById('flashOverlay');
     const mapHint = document.getElementById('mapHint');
 
+    function regenerateTerrain() {
+        const rect = mapWrapper.getBoundingClientRect();
+        if (state.terrainEnabled) {
+            state.terrainData = window.Physics.generateTerrainFeatures(
+                rect.width, rect.height,
+                state.terrainPreset,
+                state.terrainIntensity,
+                state.terrainSeed
+            );
+        } else {
+            state.terrainData = window.Physics.generateTerrainFeatures(
+                rect.width, rect.height,
+                'flat', 0, state.terrainSeed
+            );
+        }
+    }
+
     function init() {
         const elements = window.UI.getControlElements();
         const dataElements = window.DataDisplay.getElements();
@@ -52,6 +76,9 @@
         window.UI.setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, mapWrapper, flashOverlay, mapHint);
 
         const rect = mapWrapper.getBoundingClientRect();
+
+        regenerateTerrain();
+
         const firstExplosion = createExplosion({
             explosionCenter: {
                 x: rect.width / 2,
@@ -66,6 +93,7 @@
 
         window.UI.refreshExplosionList(state, elements);
         window.UI.syncControlsFromSelected(state, elements);
+        window.UI.syncTerrainControlsFromState(state, elements);
         window.UI.updateAllCalculations(state);
         window.DataDisplay.updateDataDisplay(dataElements, state);
         window.Renderer.drawMap(mapCtx, mapWrapper, state);
@@ -75,6 +103,7 @@
         createExplosion: createExplosion,
         getSelectedExplosion: getSelectedExplosion,
         getExplosionById: getExplosionById,
+        regenerateTerrain: regenerateTerrain,
         get state() { return state; }
     };
 

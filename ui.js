@@ -9,7 +9,10 @@
         'legend', 'detonateBtn', 'resetBtn',
         'explosionList', 'addExplosionBtn', 'removeExplosionBtn',
         'explosionCount', 'paramTarget',
-        'statExplosionCount', 'statCombinedArea', 'statTotalArea', 'statOverlapArea'
+        'statExplosionCount', 'statCombinedArea', 'statTotalArea', 'statOverlapArea',
+        'terrainEnabled', 'terrainPreset', 'terrainIntensity', 'terrainIntensityValue',
+        'showTerrainHeatmap', 'showTerrainContours', 'regenerateTerrainBtn',
+        'mountainCount', 'hillCount', 'basinCount', 'maxElevation'
     ];
 
     function getControlElements() {
@@ -112,6 +115,59 @@
         elements.yieldSlider.value = selected.yieldKilotons;
         elements.yieldValue.textContent = selected.yieldKilotons.toLocaleString();
         elements.burstHeight.value = String(selected.burstHeight);
+    }
+
+    function syncTerrainControlsFromState(state, elements) {
+        if (elements.terrainEnabled) elements.terrainEnabled.checked = state.terrainEnabled;
+        if (elements.terrainPreset) elements.terrainPreset.value = state.terrainPreset;
+        if (elements.terrainIntensity) elements.terrainIntensity.value = String(state.terrainIntensity);
+        if (elements.terrainIntensityValue) elements.terrainIntensityValue.textContent = state.terrainIntensity.toFixed(1);
+        if (elements.showTerrainHeatmap) elements.showTerrainHeatmap.checked = state.showTerrainHeatmap;
+        if (elements.showTerrainContours) elements.showTerrainContours.checked = state.showTerrainContours;
+        updateTerrainInfo(state, elements);
+    }
+
+    function syncStateFromTerrainControls(state, elements) {
+        if (elements.terrainEnabled) state.terrainEnabled = elements.terrainEnabled.checked;
+        if (elements.terrainPreset) state.terrainPreset = elements.terrainPreset.value;
+        if (elements.terrainIntensity) state.terrainIntensity = parseFloat(elements.terrainIntensity.value);
+        if (elements.showTerrainHeatmap) state.showTerrainHeatmap = elements.showTerrainHeatmap.checked;
+        if (elements.showTerrainContours) state.showTerrainContours = elements.showTerrainContours.checked;
+    }
+
+    function updateTerrainInfo(state, elements) {
+        if (!state.terrainData || !state.terrainData.features) {
+            if (elements.mountainCount) elements.mountainCount.textContent = '0';
+            if (elements.hillCount) elements.hillCount.textContent = '0';
+            if (elements.basinCount) elements.basinCount.textContent = '0';
+            if (elements.maxElevation) elements.maxElevation.textContent = '0';
+            return;
+        }
+
+        const FEATURE_TYPES = global.Physics.TERRAIN_FEATURE_TYPES;
+        let mountainCount = 0, hillCount = 0, basinCount = 0, maxElev = 0;
+
+        state.terrainData.features.forEach(function (f) {
+            if (f.type === FEATURE_TYPES.MOUNTAIN) mountainCount++;
+            else if (f.type === FEATURE_TYPES.HILL) hillCount++;
+            else if (f.type === FEATURE_TYPES.BASIN) basinCount++;
+            if (f.heightPx > maxElev) maxElev = f.heightPx;
+        });
+
+        if (elements.mountainCount) elements.mountainCount.textContent = mountainCount;
+        if (elements.hillCount) elements.hillCount.textContent = hillCount;
+        if (elements.basinCount) elements.basinCount.textContent = basinCount;
+        if (elements.maxElevation) elements.maxElevation.textContent = Math.round(maxElev).toLocaleString();
+    }
+
+    function regenerateTerrain(state, elements, mapCtx, mapWrapper, dataElements, forceNewSeed) {
+        if (forceNewSeed) {
+            state.terrainSeed = Math.floor(Math.random() * 100000);
+        }
+        global.App.regenerateTerrain();
+        updateTerrainInfo(state, elements);
+        global.DataDisplay.updateDataDisplay(dataElements, state);
+        global.Renderer.drawMap(mapCtx, mapWrapper, state);
     }
 
     function syncSelectedFromControls(state, elements) {
@@ -250,6 +306,11 @@
 
         state.cities.forEach(function (city) { city.destroyed = false; });
 
+        state.terrainSeed = Math.floor(Math.random() * 100000);
+        syncStateFromTerrainControls(state, elements);
+        global.App.regenerateTerrain();
+        updateTerrainInfo(state, elements);
+
         const firstExp = global.App.createExplosion({
             explosionCenter: {
                 x: rect.width / 2,
@@ -262,6 +323,7 @@
 
         mapHint.classList.add('hidden');
         syncControlsFromSelected(state, elements);
+        syncTerrainControlsFromState(state, elements);
         refreshExplosionList(state, elements);
         updateAllCalculations(state);
         global.DataDisplay.updateDataDisplay(dataElements, state);
@@ -361,6 +423,50 @@
             resetAll(state, elements, dataElements, effectCtx, mapWrapper, flashOverlay, mapHint, mapCtx);
         });
 
+        if (elements.terrainEnabled) {
+            elements.terrainEnabled.addEventListener('change', function (e) {
+                state.terrainEnabled = e.target.checked;
+                regenerateTerrain(state, elements, mapCtx, mapWrapper, dataElements, false);
+            });
+        }
+
+        if (elements.terrainPreset) {
+            elements.terrainPreset.addEventListener('change', function (e) {
+                state.terrainPreset = e.target.value;
+                regenerateTerrain(state, elements, mapCtx, mapWrapper, dataElements, false);
+            });
+        }
+
+        if (elements.terrainIntensity) {
+            elements.terrainIntensity.addEventListener('input', function (e) {
+                state.terrainIntensity = parseFloat(e.target.value);
+                if (elements.terrainIntensityValue) {
+                    elements.terrainIntensityValue.textContent = state.terrainIntensity.toFixed(1);
+                }
+                regenerateTerrain(state, elements, mapCtx, mapWrapper, dataElements, false);
+            });
+        }
+
+        if (elements.showTerrainHeatmap) {
+            elements.showTerrainHeatmap.addEventListener('change', function (e) {
+                state.showTerrainHeatmap = e.target.checked;
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            });
+        }
+
+        if (elements.showTerrainContours) {
+            elements.showTerrainContours.addEventListener('change', function (e) {
+                state.showTerrainContours = e.target.checked;
+                global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            });
+        }
+
+        if (elements.regenerateTerrainBtn) {
+            elements.regenerateTerrainBtn.addEventListener('click', function () {
+                regenerateTerrain(state, elements, mapCtx, mapWrapper, dataElements, true);
+            });
+        }
+
         mapCanvas.addEventListener('click', function (e) {
             handleCanvasClick(e, mapCanvas, state, mapHint, dataElements, mapCtx, mapWrapper, elements);
         });
@@ -371,6 +477,8 @@
             resizeTimeout = setTimeout(function () {
                 global.Renderer.setupCanvas(mapCanvas, null, mapCtx, effectCtx, mapWrapper, state);
                 updateAllCalculations(state);
+                global.App.regenerateTerrain();
+                updateTerrainInfo(state, elements);
                 global.DataDisplay.updateDataDisplay(dataElements, state);
                 global.Renderer.drawMap(mapCtx, mapWrapper, state);
             }, 200);
@@ -384,7 +492,11 @@
         updateAllCalculations: updateAllCalculations,
         handleCanvasClick: handleCanvasClick,
         refreshExplosionList: refreshExplosionList,
-        syncControlsFromSelected: syncControlsFromSelected
+        syncControlsFromSelected: syncControlsFromSelected,
+        syncTerrainControlsFromState: syncTerrainControlsFromState,
+        syncStateFromTerrainControls: syncStateFromTerrainControls,
+        updateTerrainInfo: updateTerrainInfo,
+        regenerateTerrain: regenerateTerrain
     };
 
 })(window);

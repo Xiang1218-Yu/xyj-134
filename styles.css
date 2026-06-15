@@ -965,6 +965,76 @@ body::before {
     font-size: 12px;
 }
 
+.terrain-section {
+    background: linear-gradient(135deg, rgba(100, 150, 100, 0.08), rgba(80, 120, 160, 0.08));
+    border-color: rgba(100, 180, 140, 0.2);
+}
+
+.terrain-section h2 {
+    color: var(--text-primary);
+}
+
+.regenerate-btn {
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4a7c59, #6b8e4e);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    margin-bottom: 14px;
+}
+
+.regenerate-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(100, 160, 100, 0.35);
+    filter: brightness(1.08);
+}
+
+.regenerate-btn:active {
+    transform: translateY(0);
+}
+
+.terrain-info {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+}
+
+.terrain-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    font-size: 12px;
+    border-bottom: 1px dashed rgba(100, 100, 140, 0.15);
+}
+
+.terrain-info-row:last-child {
+    border-bottom: none;
+}
+
+.terrain-info-row span:first-child {
+    color: var(--text-secondary);
+}
+
+.terrain-info-row span:last-child {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.terrain-actions {
+    margin-bottom: 4px;
+}
+
 @media (max-width: 600px) {
     .header {
         padding: 16px 20px;

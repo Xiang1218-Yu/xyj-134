@@ -12,7 +12,30 @@
         castle_bravo: { yield: 15000, name: '喝彩城堡' }
     };
 
+    const TERRAIN_FEATURE_TYPES = {
+        MOUNTAIN: 'mountain',
+        HILL: 'hill',
+        BASIN: 'basin',
+        PLAIN: 'plain'
+    };
+
+    const TERRAIN_PRESETS = {
+        flat: { name: '平坦地形', mountainCount: 0, hillCount: 0, basinCount: 0, elevationScale: 0.0 },
+        gentle: { name: '丘陵地形', mountainCount: 1, hillCount: 6, basinCount: 3, elevationScale: 0.5 },
+        mountainous: { name: '多山地形', mountainCount: 4, hillCount: 4, basinCount: 2, elevationScale: 1.0 },
+        extreme: { name: '极端地形', mountainCount: 6, hillCount: 8, basinCount: 4, elevationScale: 1.5 }
+    };
+
     const ZONE_PRIORITY = ['fireball', 'radiation', 'severe', 'moderate', 'light', 'thermal'];
+
+    const ZONE_ALTITUDE_SENSITIVITY = {
+        fireball: 0.05,
+        radiation: 0.30,
+        severe: 0.50,
+        moderate: 0.40,
+        light: 0.30,
+        thermal: 0.15
+    };
 
     function calculateRadii(yieldKilotons, burstHeight) {
         const W_megatons = yieldKilotons / 1000;
@@ -324,15 +347,349 @@
         };
     }
 
+    function mulberry32(seed) {
+        return function () {
+            let t = seed += 0x6D2B79F5;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    function generateTerrainFeatures(width, height, presetName, elevationScale, seed) {
+        const preset = TERRAIN_PRESETS[presetName] || TERRAIN_PRESETS.flat;
+        const rand = mulberry32(seed || Date.now() & 0xffffffff);
+        const scale = (elevationScale !== undefined ? elevationScale : 1) * preset.elevationScale;
+
+        const features = [];
+
+        function addFeature(type, x, y, radius, height) {
+            features.push({
+                type: type,
+                x: x,
+                y: y,
+                radius: radius,
+                height: height * scale,
+                width: radius * 2,
+                heightPx: height * scale
+            });
+        }
+
+        for (let i = 0; i < preset.mountainCount; i++) {
+            const x = width * (0.1 + rand() * 0.8);
+            const y = height * (0.1 + rand() * 0.8);
+            const radius = Math.min(width, height) * (0.06 + rand() * 0.1);
+            const heightVal = 3000 + rand() * 5000;
+            addFeature(TERRAIN_FEATURE_TYPES.MOUNTAIN, x, y, radius, heightVal);
+
+            const subPeaks = 1 + Math.floor(rand() * 3);
+            for (let j = 0; j < subPeaks; j++) {
+                const ang = rand() * Math.PI * 2;
+                const dist = radius * (0.6 + rand() * 0.8);
+                addFeature(
+                    TERRAIN_FEATURE_TYPES.MOUNTAIN,
+                    x + Math.cos(ang) * dist,
+                    y + Math.sin(ang) * dist,
+                    radius * (0.35 + rand() * 0.35),
+                    1500 + rand() * 2500
+                );
+            }
+        }
+
+        for (let i = 0; i < preset.hillCount; i++) {
+            const x = width * (0.05 + rand() * 0.9);
+            const y = height * (0.05 + rand() * 0.9);
+            const radius = Math.min(width, height) * (0.03 + rand() * 0.06);
+            const heightVal = 300 + rand() * 800;
+            addFeature(TERRAIN_FEATURE_TYPES.HILL, x, y, radius, heightVal);
+        }
+
+        for (let i = 0; i < preset.basinCount; i++) {
+            const x = width * (0.1 + rand() * 0.8);
+            const y = height * (0.1 + rand() * 0.8);
+            const radius = Math.min(width, height) * (0.05 + rand() * 0.09);
+            const depthVal = 200 + rand() * 600;
+            addFeature(TERRAIN_FEATURE_TYPES.BASIN, x, y, radius, -depthVal);
+        }
+
+        return {
+            features: features,
+            width: width,
+            height: height,
+            scale: scale,
+            presetName: presetName
+        };
+    }
+
+    function getElevationAt(x, y, terrain) {
+        if (!terrain || !terrain.features || terrain.features.length === 0) return 0;
+
+        let elevation = 0;
+        terrain.features.forEach(function (f) {
+            const dx = x - f.x;
+            const dy = y - f.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist >= f.radius * 2.5) return;
+
+            const normDist = dist / f.radius;
+            let factor;
+
+            if (f.type === TERRAIN_FEATURE_TYPES.MOUNTAIN) {
+                if (normDist < 0.3) {
+                    factor = 1 - normDist * 0.5;
+                } else if (normDist < 1) {
+                    factor = Math.cos((normDist - 0.3) / 0.7 * Math.PI / 2) * 0.95 + 0.05;
+                } else if (normDist < 2.5) {
+                    factor = (1 - (normDist - 1) / 1.5) * 0.15;
+                } else {
+                    factor = 0;
+                }
+            } else if (f.type === TERRAIN_FEATURE_TYPES.HILL) {
+                if (normDist < 1) {
+                    factor = Math.cos(normDist * Math.PI / 2) * 0.9 + 0.1;
+                } else if (normDist < 1.8) {
+                    factor = (1 - (normDist - 1) / 0.8) * 0.1;
+                } else {
+                    factor = 0;
+                }
+            } else if (f.type === TERRAIN_FEATURE_TYPES.BASIN) {
+                if (normDist < 0.2) {
+                    factor = 1;
+                } else if (normDist < 1) {
+                    factor = Math.cos((normDist - 0.2) / 0.8 * Math.PI / 2);
+                } else if (normDist < 2) {
+                    factor = (1 - (normDist - 1)) * 0.2;
+                } else {
+                    factor = 0;
+                }
+            }
+
+            elevation += f.heightPx * factor;
+        });
+
+        return elevation;
+    }
+
+    function calculatePathAttenuation(fromX, fromY, toX, toY, terrain, zoneName, scale, burstHeightMeters) {
+        if (!terrain || !terrain.features || terrain.features.length === 0) {
+            return { attenuation: 1, maxObstacleHeight: 0, pathLengthKm: 0 };
+        }
+
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const distPx = Math.sqrt(dx * dx + dy * dy);
+        const distKm = distPx / scale;
+
+        if (distKm < 0.1) {
+            return { attenuation: 1, maxObstacleHeight: 0, pathLengthKm: distKm };
+        }
+
+        const samples = Math.max(8, Math.min(64, Math.floor(distPx / 10)));
+        const sensitivity = ZONE_ALTITUDE_SENSITIVITY[zoneName] || 0.2;
+        const burstHeight = burstHeightMeters || 0;
+
+        let totalObstruction = 0;
+        let maxHeightDiff = 0;
+
+        for (let i = 1; i <= samples; i++) {
+            const t = i / samples;
+            const px = fromX + dx * t;
+            const py = fromY + dy * t;
+            const elev = getElevationAt(px, py, terrain);
+            const currentDistKm = distKm * t;
+
+            const lineOfSightHeight = burstHeight + ((elev > burstHeight ? 0 : 0) - burstHeight) * t;
+            const heightDiff = elev - burstHeight;
+
+            if (heightDiff > 0) {
+                const shieldFactor = 1 - currentDistKm / Math.max(distKm, 0.5);
+                const obstruction = (heightDiff / 500) * sensitivity * shieldFactor;
+                totalObstruction += obstruction;
+            }
+
+            if (heightDiff > maxHeightDiff) {
+                maxHeightDiff = heightDiff;
+            }
+        }
+
+        const avgObstruction = totalObstruction / samples;
+        let attenuation = 1 - avgObstruction;
+
+        if (maxHeightDiff > 1500) {
+            const majorBlock = (maxHeightDiff - 1500) / 4000 * sensitivity;
+            attenuation -= majorBlock;
+        }
+
+        if (zoneName === 'radiation') {
+            const radiationScatter = Math.max(0, maxHeightDiff / 3000) * 0.3;
+            attenuation -= radiationScatter;
+        }
+
+        if (zoneName === 'thermal') {
+            const thermalBlock = Math.max(0, maxHeightDiff / 2000) * 0.25;
+            attenuation -= thermalBlock;
+        }
+
+        attenuation = Math.max(0.2, Math.min(1, attenuation));
+
+        return {
+            attenuation: attenuation,
+            maxObstacleHeight: maxHeightDiff,
+            pathLengthKm: distKm
+        };
+    }
+
+    function calculateEffectiveRadius(explosion, targetX, targetY, zoneName, terrain, scale) {
+        const baseRadius = explosion.radii ? explosion.radii[zoneName] : 0;
+        if (!explosion.explosionCenter || baseRadius <= 0) return 0;
+
+        const fromX = explosion.explosionCenter.x;
+        const fromY = explosion.explosionCenter.y;
+
+        const result = calculatePathAttenuation(
+            fromX, fromY, targetX, targetY,
+            terrain, zoneName, scale, explosion.burstHeight
+        );
+
+        return baseRadius * result.attenuation;
+    }
+
+    function generateTerrainBoundaryPolygon(explosion, zoneName, terrain, scale, segments) {
+        if (!explosion.explosionCenter || !explosion.radii) return null;
+
+        const segs = segments || 72;
+        const baseRadius = explosion.radii[zoneName] * scale;
+        const cx = explosion.explosionCenter.x;
+        const cy = explosion.explosionCenter.y;
+
+        const points = [];
+        for (let i = 0; i < segs; i++) {
+            const angle = (i / segs) * Math.PI * 2;
+            const targetX = cx + Math.cos(angle) * baseRadius;
+            const targetY = cy + Math.sin(angle) * baseRadius;
+
+            const attenuation = calculatePathAttenuation(
+                cx, cy, targetX, targetY,
+                terrain, zoneName, scale, explosion.burstHeight
+            ).attenuation;
+
+            const effectiveRadiusPx = baseRadius * attenuation;
+            points.push({
+                x: cx + Math.cos(angle) * effectiveRadiusPx,
+                y: cy + Math.sin(angle) * effectiveRadiusPx,
+                angle: angle,
+                attenuation: attenuation
+            });
+        }
+
+        return points;
+    }
+
+    function checkPointInAnyZoneTerrainAware(point, explosions, terrain, scale) {
+        let worstZoneIndex = -1;
+        let worstExplosionId = null;
+
+        explosions.forEach(function (exp) {
+            if (!exp.explosionCenter || !exp.radii) return;
+
+            const dx = point.x - exp.explosionCenter.x;
+            const dy = point.y - exp.explosionCenter.y;
+            const distPx = Math.sqrt(dx * dx + dy * dy);
+            const distKm = distPx / scale;
+
+            for (let i = 0; i < ZONE_PRIORITY.length; i++) {
+                const zoneName = ZONE_PRIORITY[i];
+                const effectiveRadius = calculateEffectiveRadius(exp, point.x, point.y, zoneName, terrain, scale);
+
+                if (distKm <= effectiveRadius) {
+                    if (worstZoneIndex < 0 || i < worstZoneIndex) {
+                        worstZoneIndex = i;
+                        worstExplosionId = exp.id;
+                    }
+                    break;
+                }
+            }
+        });
+
+        return worstZoneIndex >= 0 ? ZONE_PRIORITY[worstZoneIndex] : null;
+    }
+
+    function getWorstZoneForCityTerrain(city, explosions, scale, terrain) {
+        if (!terrain || !terrain.features || terrain.features.length === 0) {
+            return getWorstZoneForCity(city, explosions, scale);
+        }
+        return checkPointInAnyZoneTerrainAware(city, explosions, terrain, scale);
+    }
+
+    function calculateCasualtiesTerrainAware(cities, explosions, scale, terrain) {
+        let deaths = 0;
+        let injured = 0;
+
+        if (!explosions || explosions.length === 0 || !cities || cities.length === 0) {
+            return { deaths: 0, injured: 0 };
+        }
+
+        const useTerrain = terrain && terrain.features && terrain.features.length > 0;
+
+        cities.forEach(function (city) {
+            const worstZone = useTerrain
+                ? checkPointInAnyZoneTerrainAware(city, explosions, terrain, scale)
+                : getWorstZoneForCity(city, explosions, scale);
+            if (!worstZone) return;
+
+            const pop = city.population;
+            const result = calculateCasualtiesForZone(pop, worstZone);
+            deaths += result.deaths;
+            injured += result.injured;
+            if (result.destroyed) city.destroyed = true;
+        });
+
+        return {
+            deaths: Math.round(deaths),
+            injured: Math.round(injured)
+        };
+    }
+
+    function calculateShockwaveRadiusAtAngle(explosion, angle, zoneKey, terrain, scale, baseRadiusPx) {
+        if (!terrain || !terrain.features || terrain.features.length === 0) {
+            return baseRadiusPx;
+        }
+        if (!explosion.explosionCenter) return baseRadiusPx;
+
+        const cx = explosion.explosionCenter.x;
+        const cy = explosion.explosionCenter.y;
+        const targetX = cx + Math.cos(angle) * baseRadiusPx;
+        const targetY = cy + Math.sin(angle) * baseRadiusPx;
+
+        const result = calculatePathAttenuation(
+            cx, cy, targetX, targetY,
+            terrain, zoneKey, scale, explosion.burstHeight
+        );
+
+        return baseRadiusPx * result.attenuation;
+    }
+
     global.Physics = {
         BOMB_TYPES: BOMB_TYPES,
         ZONE_PRIORITY: ZONE_PRIORITY,
+        TERRAIN_FEATURE_TYPES: TERRAIN_FEATURE_TYPES,
+        TERRAIN_PRESETS: TERRAIN_PRESETS,
+        ZONE_ALTITUDE_SENSITIVITY: ZONE_ALTITUDE_SENSITIVITY,
         calculateRadii: calculateRadii,
         generateCities: generateCities,
         generateRoads: generateRoads,
+        generateTerrainFeatures: generateTerrainFeatures,
+        getElevationAt: getElevationAt,
+        calculatePathAttenuation: calculatePathAttenuation,
+        calculateEffectiveRadius: calculateEffectiveRadius,
+        generateTerrainBoundaryPolygon: generateTerrainBoundaryPolygon,
+        calculateShockwaveRadiusAtAngle: calculateShockwaveRadiusAtAngle,
+        checkPointInAnyZoneTerrainAware: checkPointInAnyZoneTerrainAware,
         calculateCasualties: calculateCasualties,
         calculateCombinedCasualties: calculateCombinedCasualties,
+        calculateCasualtiesTerrainAware: calculateCasualtiesTerrainAware,
         getWorstZoneForCity: getWorstZoneForCity,
+        getWorstZoneForCityTerrain: getWorstZoneForCityTerrain,
         calculateEnergy: calculateEnergy,
         calculateTotalEnergy: calculateTotalEnergy,
         calculateAffectedArea: calculateAffectedArea,
@@ -340,7 +697,8 @@
         calculateTotalAreaSum: calculateTotalAreaSum,
         calculateOverlapArea: calculateOverlapArea,
         calculateAllCombinedStats: calculateAllCombinedStats,
-        calculateCombinedAreaPerZone: calculateCombinedAreaPerZone
+        calculateCombinedAreaPerZone: calculateCombinedAreaPerZone,
+        mulberry32: mulberry32
     };
 
 })(window);

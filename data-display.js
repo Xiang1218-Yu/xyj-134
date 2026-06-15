@@ -76,11 +76,11 @@
                 const r = selected.radii || global.Physics.calculateRadii(selected.yieldKilotons, selected.burstHeight);
                 updateRadiiDisplay(elements, r);
 
-                const casualties = global.Physics.calculateCasualties(
+                const casualties = global.Physics.calculateCasualtiesTerrainAware(
                     state.cities,
-                    selected.explosionCenter,
-                    r,
-                    state.scale
+                    [selected],
+                    state.scale,
+                    state.terrainData
                 );
                 elements.estimatedDeaths.textContent = formatNumber(casualties.deaths);
                 elements.estimatedInjured.textContent = formatNumber(casualties.injured);
@@ -100,10 +100,11 @@
         } else {
             const stats = global.Physics.calculateAllCombinedStats(state.explosions, state.scale);
 
-            const casualties = global.Physics.calculateCombinedCasualties(
+            const casualties = global.Physics.calculateCasualtiesTerrainAware(
                 state.cities,
                 state.explosions,
-                state.scale
+                state.scale,
+                state.terrainData
             );
 
             const maxRadiiPerZone = getMaxRadiiAcrossExplosions(state.explosions);

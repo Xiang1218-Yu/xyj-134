@@ -4,7 +4,7 @@
     const rgba = global.DataDisplay.rgba;
     const hexToRgba = global.DataDisplay.hexToRgba;
 
-    function createExplosionAnimState(explosion, index, scale) {
+    function createExplosionAnimState(explosion, index, scale, terrain) {
         const cx = explosion.explosionCenter.x;
         const cy = explosion.explosionCenter.y;
         const radii = explosion.radii;
@@ -47,7 +47,9 @@
             radii: radii,
             particles: particles,
             smoke: colors.smoke,
-            maxShockwave: radii.thermal * scale * 1.2
+            maxShockwave: radii.thermal * scale * 1.2,
+            terrain: terrain,
+            explosionRef: explosion
         };
     }
 
@@ -83,7 +85,7 @@
         const height = rect.height;
 
         const animStates = activeExplosions.map(function (exp, idx) {
-            return createExplosionAnimState(exp, idx, state.scale);
+            return createExplosionAnimState(exp, idx, state.scale, state.terrainData);
         });
 
         const totalDuration = 5500;
@@ -127,44 +129,84 @@
             }
         }
 
-        function drawPhase2(progress, a) {
-            const p = progress;
-            const swP = (p - 0.2) / 0.3;
-            const currentSW = Math.pow(swP, 0.5) * a.maxShockwave;
-            const swAlpha = 1 - swP;
+        function drawShockwaveRing(effectCtx, a, currentSW, swAlpha, terrain, scale, zoneKey) {
+        const useTerrain = terrain && terrain.features && terrain.features.length > 0;
+        const segments = 96;
 
-            drawPersistentFireball(effectCtx, a, 0.5);
-
-            effectCtx.beginPath();
-            effectCtx.arc(a.cx, a.cy, currentSW, 0, Math.PI * 2);
-            effectCtx.strokeStyle = rgba(255, 200, 100, swAlpha * 0.8);
-            effectCtx.lineWidth = 8;
-            effectCtx.stroke();
-
-            for (let i = 0; i < 4; i++) {
-                const innerSW = currentSW * (1 - (i + 1) * 0.15);
-                if (innerSW > 0) {
-                    effectCtx.beginPath();
-                    effectCtx.arc(a.cx, a.cy, innerSW, 0, Math.PI * 2);
-                    effectCtx.strokeStyle = rgba(255, 100, 50, swAlpha * 0.4);
-                    effectCtx.lineWidth = 3;
-                    effectCtx.stroke();
-                }
-            }
-
-            a.particles.forEach(function (particle) {
-                particle.x += particle.vx * (1 + swP * 3);
-                particle.y += particle.vy * (1 + swP * 2);
-                particle.vy += 0.05;
-                const particleAlpha = particle.life * (1 - swP * 0.8);
-                if (particleAlpha > 0) {
-                    effectCtx.beginPath();
-                    effectCtx.arc(particle.x, particle.y, particle.size * (1 + swP * 0.5), 0, Math.PI * 2);
-                    effectCtx.fillStyle = hexToRgba(particle.color, particleAlpha);
-                    effectCtx.fill();
-                }
-            });
+        function getRadiusAtAngle(angle) {
+            if (!useTerrain || !a.explosionRef) return currentSW;
+            return global.Physics.calculateShockwaveRadiusAtAngle(
+                a.explosionRef, angle, zoneKey, terrain, scale, currentSW
+            );
         }
+
+        effectCtx.beginPath();
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            let r;
+            if (useTerrain) {
+                r = getRadiusAtAngle(angle);
+            } else {
+                r = currentSW;
+            }
+            const x = a.cx + Math.cos(angle) * r;
+            const y = a.cy + Math.sin(angle) * r;
+            if (i === 0) effectCtx.moveTo(x, y);
+            else {
+                const prevAngle = ((i - 1) / segments) * Math.PI * 2;
+                let prevR;
+                if (useTerrain) {
+                    prevR = getRadiusAtAngle(prevAngle);
+                } else {
+                    prevR = currentSW;
+                }
+                const prevX = a.cx + Math.cos(prevAngle) * prevR;
+                const prevY = a.cy + Math.sin(prevAngle) * prevR;
+                const midX = (prevX + x) / 2;
+                const midY = (prevY + y) / 2;
+                effectCtx.quadraticCurveTo(prevX, prevY, midX, midY);
+            }
+        }
+        effectCtx.stroke();
+    }
+
+    function drawPhase2(progress, a) {
+        const p = progress;
+        const swP = (p - 0.2) / 0.3;
+        const currentSW = Math.pow(swP, 0.5) * a.maxShockwave;
+        const swAlpha = 1 - swP;
+
+        drawPersistentFireball(effectCtx, a, 0.5);
+
+        const terrain = a.terrain;
+        const scale = a.scale;
+
+        effectCtx.lineWidth = 8;
+        effectCtx.strokeStyle = rgba(255, 200, 100, swAlpha * 0.8);
+        drawShockwaveRing(effectCtx, a, currentSW, swAlpha, terrain, scale, 'severe');
+
+        for (let i = 0; i < 4; i++) {
+            const innerSW = currentSW * (1 - (i + 1) * 0.15);
+            if (innerSW > 0) {
+                effectCtx.strokeStyle = rgba(255, 100, 50, swAlpha * 0.4);
+                effectCtx.lineWidth = 3;
+                drawShockwaveRing(effectCtx, a, innerSW, swAlpha, terrain, scale, 'severe');
+            }
+        }
+
+        a.particles.forEach(function (particle) {
+            particle.x += particle.vx * (1 + swP * 3);
+            particle.y += particle.vy * (1 + swP * 2);
+            particle.vy += 0.05;
+            const particleAlpha = particle.life * (1 - swP * 0.8);
+            if (particleAlpha > 0) {
+                effectCtx.beginPath();
+                effectCtx.arc(particle.x, particle.y, particle.size * (1 + swP * 0.5), 0, Math.PI * 2);
+                effectCtx.fillStyle = hexToRgba(particle.color, particleAlpha);
+                effectCtx.fill();
+            }
+        });
+    }
 
         function drawPhase3(progress, a) {
             const p = progress;
