@@ -26,6 +26,218 @@
         extreme: { name: '极端地形', mountainCount: 6, hillCount: 8, basinCount: 4, elevationScale: 1.5 }
     };
 
+    const BUILDING_TYPES = {
+        temporary: {
+            name: '临时建筑',
+            shortName: '临建',
+            color: '#8b7355',
+            description: '临时工棚、简易房屋',
+            structureFactor: 0.15,
+            collapsePsi: 0.8,
+            severeDamagePsi: 0.5,
+            moderateDamagePsi: 0.3,
+            lightDamagePsi: 0.15,
+            indoorSurvivalRate: {
+                intact: 0.99,
+                light: 0.9,
+                moderate: 0.6,
+                severe: 0.2,
+                destroyed: 0.05
+            }
+        },
+        wood: {
+            name: '木结构',
+            shortName: '木构',
+            color: '#a0522d',
+            description: '传统木质结构住宅',
+            structureFactor: 0.35,
+            collapsePsi: 2.0,
+            severeDamagePsi: 1.2,
+            moderateDamagePsi: 0.7,
+            lightDamagePsi: 0.35,
+            indoorSurvivalRate: {
+                intact: 0.99,
+                light: 0.95,
+                moderate: 0.75,
+                severe: 0.35,
+                destroyed: 0.1
+            }
+        },
+        brick: {
+            name: '砖混结构',
+            shortName: '砖混',
+            color: '#b22222',
+            description: '砖砌体结构房屋',
+            structureFactor: 0.55,
+            collapsePsi: 4.0,
+            severeDamagePsi: 2.5,
+            moderateDamagePsi: 1.5,
+            lightDamagePsi: 0.7,
+            indoorSurvivalRate: {
+                intact: 0.995,
+                light: 0.97,
+                moderate: 0.82,
+                severe: 0.45,
+                destroyed: 0.15
+            }
+        },
+        rc_frame: {
+            name: '钢筋混凝土框架',
+            shortName: '砼框架',
+            color: '#708090',
+            description: '钢筋混凝土框架结构',
+            structureFactor: 0.8,
+            collapsePsi: 8.0,
+            severeDamagePsi: 5.0,
+            moderateDamagePsi: 3.0,
+            lightDamagePsi: 1.5,
+            indoorSurvivalRate: {
+                intact: 0.998,
+                light: 0.98,
+                moderate: 0.88,
+                severe: 0.55,
+                destroyed: 0.22
+            }
+        },
+        steel: {
+            name: '钢结构',
+            shortName: '钢构',
+            color: '#4682b4',
+            description: '钢结构建筑',
+            structureFactor: 1.0,
+            collapsePsi: 12.0,
+            severeDamagePsi: 7.5,
+            moderateDamagePsi: 4.5,
+            lightDamagePsi: 2.2,
+            indoorSurvivalRate: {
+                intact: 0.998,
+                light: 0.985,
+                moderate: 0.9,
+                severe: 0.6,
+                destroyed: 0.25
+            }
+        },
+        rc_core: {
+            name: '钢筋混凝土核心筒',
+            shortName: '核心筒',
+            color: '#2f4f4f',
+            description: '超高层核心筒结构',
+            structureFactor: 1.3,
+            collapsePsi: 18.0,
+            severeDamagePsi: 11.0,
+            moderateDamagePsi: 6.5,
+            lightDamagePsi: 3.2,
+            indoorSurvivalRate: {
+                intact: 0.999,
+                light: 0.99,
+                moderate: 0.92,
+                severe: 0.65,
+                destroyed: 0.3
+            }
+        },
+        blast_resistant: {
+            name: '防爆人防工程',
+            shortName: '人防',
+            color: '#556b2f',
+            description: '人防工程、防爆建筑',
+            structureFactor: 2.5,
+            collapsePsi: 35.0,
+            severeDamagePsi: 22.0,
+            moderateDamagePsi: 12.0,
+            lightDamagePsi: 6.0,
+            indoorSurvivalRate: {
+                intact: 0.999,
+                light: 0.995,
+                moderate: 0.97,
+                severe: 0.85,
+                destroyed: 0.5
+            }
+        }
+    };
+
+    const BUILDING_TYPE_ORDER = ['temporary', 'wood', 'brick', 'rc_frame', 'steel', 'rc_core', 'blast_resistant'];
+
+    const DAMAGE_LEVELS = {
+        intact: { name: '完好', color: '#4caf50', order: 0 },
+        light: { name: '轻微破坏', color: '#ffeb3b', order: 1 },
+        moderate: { name: '中度破坏', color: '#ff9800', order: 2 },
+        severe: { name: '严重破坏', color: '#f44336', order: 3 },
+        destroyed: { name: '完全摧毁', color: '#9c27b0', order: 4 }
+    };
+
+    function getBuildingDamageLevel(buildingType, overpressurePsi) {
+        const bt = BUILDING_TYPES[buildingType];
+        if (!bt) return 'destroyed';
+
+        const op = overpressurePsi;
+
+        if (op >= bt.collapsePsi) return 'destroyed';
+        if (op >= bt.severeDamagePsi) return 'severe';
+        if (op >= bt.moderateDamagePsi) return 'moderate';
+        if (op >= bt.lightDamagePsi) return 'light';
+        return 'intact';
+    }
+
+    function getOverpressureAtDistance(yieldKilotons, distanceKm, burstHeight) {
+        const W_megatons = yieldKilotons / 1000;
+
+        if (distanceKm <= 0) return 100;
+
+        const scaledDist = distanceKm / Math.pow(W_megatons, 1 / 3);
+
+        let overpressure;
+        if (scaledDist < 0.1) {
+            overpressure = 200;
+        } else if (scaledDist < 0.5) {
+            overpressure = 30 * Math.pow(0.1 / scaledDist, 1.5);
+        } else if (scaledDist < 2) {
+            overpressure = 10 * Math.pow(0.5 / scaledDist, 1.3);
+        } else if (scaledDist < 10) {
+            overpressure = 2 * Math.pow(2 / scaledDist, 1.1);
+        } else {
+            overpressure = 0.3 * Math.pow(10 / scaledDist, 1.0);
+        }
+
+        const heightFactor = burstHeight > 0 ? Math.exp(-burstHeight / 3000) : 1.0;
+        overpressure *= (0.8 + heightFactor * 0.4);
+
+        return Math.max(0.01, overpressure);
+    }
+
+    function calculateBuildingCasualties(population, buildingType, overpressurePsi, indoorRatio) {
+        const bt = BUILDING_TYPES[buildingType];
+        if (!bt) return { deaths: 0, injured: 0, damageLevel: 'destroyed' };
+
+        const damageLevel = getBuildingDamageLevel(buildingType, overpressurePsi);
+        const indoorPop = population * (indoorRatio !== undefined ? indoorRatio : 0.85);
+        const outdoorPop = population - indoorPop;
+
+        const indoorSurvival = bt.indoorSurvivalRate[damageLevel];
+        const indoorDeaths = indoorPop * (1 - indoorSurvival);
+
+        const outdoorSurvival = Math.max(0, 1 - overpressurePsi / 3);
+        const outdoorDeaths = outdoorPop * Math.max(0, 1 - outdoorSurvival);
+
+        const totalDeaths = indoorDeaths + outdoorDeaths;
+        const injuredRatio = {
+            intact: 0.02,
+            light: 0.08,
+            moderate: 0.2,
+            severe: 0.35,
+            destroyed: 0.25
+        }[damageLevel] || 0;
+
+        const totalInjured = population * injuredRatio * (1 - totalDeaths / population);
+
+        return {
+            deaths: totalDeaths,
+            injured: Math.max(0, totalInjured),
+            damageLevel: damageLevel,
+            buildingType: buildingType,
+            overpressure: overpressurePsi
+        };
+    }
+
     const ZONE_PRIORITY = ['fireball', 'radiation', 'severe', 'moderate', 'light', 'thermal'];
 
     const ZONE_ALTITUDE_SENSITIVITY = {
@@ -60,6 +272,58 @@
         };
     }
 
+    function generateBuildingDistribution(isCentral, size) {
+        const dist = {};
+
+        if (isCentral) {
+            dist.temporary = 0.02;
+            dist.wood = 0.05;
+            dist.brick = 0.18;
+            dist.rc_frame = 0.40;
+            dist.steel = 0.20;
+            dist.rc_core = 0.12;
+            dist.blast_resistant = 0.03;
+        } else if (size > 35) {
+            dist.temporary = 0.04;
+            dist.wood = 0.08;
+            dist.brick = 0.25;
+            dist.rc_frame = 0.35;
+            dist.steel = 0.15;
+            dist.rc_core = 0.10;
+            dist.blast_resistant = 0.03;
+        } else if (size > 25) {
+            dist.temporary = 0.06;
+            dist.wood = 0.12;
+            dist.brick = 0.35;
+            dist.rc_frame = 0.28;
+            dist.steel = 0.10;
+            dist.rc_core = 0.07;
+            dist.blast_resistant = 0.02;
+        } else {
+            dist.temporary = 0.10;
+            dist.wood = 0.20;
+            dist.brick = 0.40;
+            dist.rc_frame = 0.18;
+            dist.steel = 0.06;
+            dist.rc_core = 0.04;
+            dist.blast_resistant = 0.02;
+        }
+
+        const jitter = 0.03;
+        let total = 0;
+        BUILDING_TYPE_ORDER.forEach(function (type) {
+            const jitterAmount = (Math.random() - 0.5) * 2 * jitter;
+            dist[type] = Math.max(0.01, dist[type] + jitterAmount);
+            total += dist[type];
+        });
+
+        BUILDING_TYPE_ORDER.forEach(function (type) {
+            dist[type] = dist[type] / total;
+        });
+
+        return dist;
+    }
+
     function generateCities(width, height) {
         const cities = [];
         const cityCount = 80;
@@ -75,13 +339,15 @@
             if (x > 50 && x < width - 50 && y > 50 && y < height - 50) {
                 const size = Math.random() * 30 + 15;
                 const population = Math.floor(Math.random() * 500000 + 50000);
+                const buildingDist = generateBuildingDistribution(false, size);
                 cities.push({
                     x: x,
                     y: y,
                     size: size,
                     population: population,
                     name: getCityName(i),
-                    destroyed: false
+                    destroyed: false,
+                    buildingDistribution: buildingDist
                 });
             }
         }
@@ -92,7 +358,8 @@
             size: 55,
             population: 3000000,
             name: '中心都市',
-            destroyed: false
+            destroyed: false,
+            buildingDistribution: generateBuildingDistribution(true, 55)
         };
         cities.unshift(centralCity);
 
@@ -163,6 +430,188 @@
             default:
                 return { deaths: 0, injured: 0, destroyed: false };
         }
+    }
+
+    function calculateCityBuildingDamage(city, explosions, scale, terrain) {
+        let maxOverpressure = 0;
+        let worstFireball = false;
+        let worstRadiation = false;
+
+        explosions.forEach(function (exp) {
+            if (!exp.explosionCenter || !exp.radii) return;
+            const dx = city.x - exp.explosionCenter.x;
+            const dy = city.y - exp.explosionCenter.y;
+            const distPx = Math.sqrt(dx * dx + dy * dy);
+            const distKm = distPx / scale;
+
+            let effectiveDistKm = distKm;
+            if (terrain && terrain.features && terrain.features.length > 0) {
+                const attenuationResult = calculatePathAttenuation(
+                    exp.explosionCenter.x, exp.explosionCenter.y,
+                    city.x, city.y,
+                    terrain, 'severe', scale, exp.burstHeight
+                );
+                effectiveDistKm = distKm / Math.max(0.3, attenuationResult.attenuation);
+            }
+
+            const op = getOverpressureAtDistance(exp.yieldKilotons, effectiveDistKm, exp.burstHeight);
+            if (op > maxOverpressure) {
+                maxOverpressure = op;
+            }
+
+            if (distKm <= exp.radii.fireball) {
+                worstFireball = true;
+            }
+            if (distKm <= exp.radii.radiation) {
+                worstRadiation = true;
+            }
+        });
+
+        const buildingResults = {};
+        let totalDeaths = 0;
+        let totalInjured = 0;
+        let totalDestroyedPop = 0;
+        let totalAffectedPop = 0;
+
+        const distByDamage = {
+            intact: 0,
+            light: 0,
+            moderate: 0,
+            severe: 0,
+            destroyed: 0
+        };
+
+        BUILDING_TYPE_ORDER.forEach(function (buildingType) {
+            const ratio = city.buildingDistribution[buildingType] || 0;
+            const popInBuilding = city.population * ratio;
+
+            let adjustedOverpressure = maxOverpressure;
+            if (worstFireball) {
+                adjustedOverpressure = Math.max(adjustedOverpressure, 50);
+            }
+
+            const result = calculateBuildingCasualties(
+                popInBuilding,
+                buildingType,
+                adjustedOverpressure
+            );
+
+            buildingResults[buildingType] = {
+                population: popInBuilding,
+                damageLevel: result.damageLevel,
+                deaths: result.deaths,
+                injured: result.injured,
+                overpressure: adjustedOverpressure
+            };
+
+            totalDeaths += result.deaths;
+            totalInjured += result.injured;
+
+            if (result.damageLevel === 'destroyed') {
+                totalDestroyedPop += popInBuilding;
+            }
+            if (result.damageLevel !== 'intact') {
+                totalAffectedPop += popInBuilding;
+            }
+
+            distByDamage[result.damageLevel] = (distByDamage[result.damageLevel] || 0) + popInBuilding;
+        });
+
+        if (worstRadiation) {
+            totalDeaths += city.population * 0.05;
+            totalInjured += city.population * 0.08;
+        }
+
+        const avgStructureFactor = calculateAvgStructureFactor(city.buildingDistribution);
+
+        return {
+            city: city,
+            maxOverpressure: maxOverpressure,
+            avgStructureFactor: avgStructureFactor,
+            buildingResults: buildingResults,
+            totalDeaths: totalDeaths,
+            totalInjured: totalInjured,
+            totalDestroyedPop: totalDestroyedPop,
+            totalAffectedPop: totalAffectedPop,
+            distByDamage: distByDamage,
+            inFireball: worstFireball,
+            inRadiation: worstRadiation,
+            survivalRate: city.population > 0 ? 1 - totalDeaths / city.population : 0
+        };
+    }
+
+    function calculateAvgStructureFactor(buildingDistribution) {
+        let total = 0;
+        let weightedSum = 0;
+        BUILDING_TYPE_ORDER.forEach(function (type) {
+            const ratio = buildingDistribution[type] || 0;
+            if (ratio > 0) {
+                const bt = BUILDING_TYPES[type];
+                weightedSum += bt.structureFactor * ratio;
+                total += ratio;
+            }
+        });
+        return total > 0 ? weightedSum / total : 0.5;
+    }
+
+    function calculateAllCitiesBuildingDamage(cities, explosions, scale, terrain) {
+        const results = [];
+        let totalDeaths = 0;
+        let totalInjured = 0;
+        let totalDestroyedPop = 0;
+
+        const totalByDamage = {
+            intact: 0,
+            light: 0,
+            moderate: 0,
+            severe: 0,
+            destroyed: 0
+        };
+
+        const totalByBuildingType = {};
+        BUILDING_TYPE_ORDER.forEach(function (type) {
+            totalByBuildingType[type] = { population: 0, deaths: 0, injured: 0 };
+        });
+
+        cities.forEach(function (city) {
+            const result = calculateCityBuildingDamage(city, explosions, scale, terrain);
+            results.push(result);
+
+            totalDeaths += result.totalDeaths;
+            totalInjured += result.totalInjured;
+            totalDestroyedPop += result.totalDestroyedPop;
+
+            Object.keys(totalByDamage).forEach(function (level) {
+                totalByDamage[level] += result.distByDamage[level] || 0;
+            });
+
+            BUILDING_TYPE_ORDER.forEach(function (type) {
+                if (result.buildingResults[type]) {
+                    totalByBuildingType[type].population += result.buildingResults[type].population;
+                    totalByBuildingType[type].deaths += result.buildingResults[type].deaths;
+                    totalByBuildingType[type].injured += result.buildingResults[type].injured;
+                }
+            });
+
+            if (result.totalDestroyedPop > city.population * 0.5) {
+                city.destroyed = true;
+            }
+        });
+
+        const totalPopulation = cities.reduce(function (sum, city) {
+            return sum + city.population;
+        }, 0);
+
+        return {
+            cityResults: results,
+            totalDeaths: Math.round(totalDeaths),
+            totalInjured: Math.round(totalInjured),
+            totalDestroyedPop: Math.round(totalDestroyedPop),
+            totalPopulation: totalPopulation,
+            totalByDamage: totalByDamage,
+            totalByBuildingType: totalByBuildingType,
+            overallSurvivalRate: totalPopulation > 0 ? 1 - totalDeaths / totalPopulation : 0
+        };
     }
 
     function calculateCasualties(cities, explosionCenter, radii, scale) {
@@ -1063,8 +1512,12 @@
         ROAD_BASE_CAPACITY: ROAD_BASE_CAPACITY,
         VEHICLE_SPEED_KMH: VEHICLE_SPEED_KMH,
         PEOPLE_PER_VEHICLE: PEOPLE_PER_VEHICLE,
+        BUILDING_TYPES: BUILDING_TYPES,
+        BUILDING_TYPE_ORDER: BUILDING_TYPE_ORDER,
+        DAMAGE_LEVELS: DAMAGE_LEVELS,
         calculateRadii: calculateRadii,
         generateCities: generateCities,
+        generateBuildingDistribution: generateBuildingDistribution,
         generateRoads: generateRoads,
         generateRoadNetwork: generateRoadNetwork,
         generateShelters: generateShelters,
@@ -1079,6 +1532,12 @@
         generateTerrainBoundaryPolygon: generateTerrainBoundaryPolygon,
         calculateShockwaveRadiusAtAngle: calculateShockwaveRadiusAtAngle,
         checkPointInAnyZoneTerrainAware: checkPointInAnyZoneTerrainAware,
+        getBuildingDamageLevel: getBuildingDamageLevel,
+        getOverpressureAtDistance: getOverpressureAtDistance,
+        calculateBuildingCasualties: calculateBuildingCasualties,
+        calculateCityBuildingDamage: calculateCityBuildingDamage,
+        calculateAllCitiesBuildingDamage: calculateAllCitiesBuildingDamage,
+        calculateAvgStructureFactor: calculateAvgStructureFactor,
         calculateCasualties: calculateCasualties,
         calculateCombinedCasualties: calculateCombinedCasualties,
         calculateCasualtiesTerrainAware: calculateCasualtiesTerrainAware,

@@ -18,7 +18,12 @@
         'evacStartBtn', 'evacPauseBtn', 'evacResetBtn', 'evacSpeed',
         'evacTotalPop', 'evacEvacuated', 'evacStranded', 'evacRate',
         'evacProgress', 'evacProgressFill', 'evacTime', 'evacWarningTime',
-        'evacModeBadge', 'evacuationPanel'
+        'evacModeBadge', 'evacuationPanel',
+        'buildingTotalPop', 'buildingDestroyedPop', 'buildingAvgStrength',
+        'buildingSurvivalRate', 'maxOverpressure', 'overpressureBar',
+        'buildingTypeList', 'damageBarChart', 'damageStatsList',
+        'buildingCitySelect', 'buildingSummaryView', 'buildingByTypeView', 'buildingByDamageView',
+        'buildingPanel'
     ];
 
     function getControlElements() {
@@ -356,6 +361,23 @@
             combinedStats.style.display = view === 'combined' ? 'block' : 'none';
         }
         global.DataDisplay.updateDataDisplay(dataElements, state);
+    }
+
+    function handleBuildingViewToggle(view, state, elements) {
+        state.buildingViewMode = view;
+        document.querySelectorAll('.building-toggle-btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.buildingView === view);
+        });
+
+        if (elements.buildingSummaryView) {
+            elements.buildingSummaryView.style.display = view === 'summary' ? 'block' : 'none';
+        }
+        if (elements.buildingByTypeView) {
+            elements.buildingByTypeView.style.display = view === 'byType' ? 'block' : 'none';
+        }
+        if (elements.buildingByDamageView) {
+            elements.buildingByDamageView.style.display = view === 'byDamage' ? 'block' : 'none';
+        }
     }
 
     function recalculateEvacuation(state, elements, mapCtx, mapWrapper) {
@@ -819,6 +841,18 @@
             });
         }
 
+        document.querySelectorAll('.building-toggle-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                handleBuildingViewToggle(btn.dataset.buildingView, state, elements);
+            });
+        });
+
+        if (elements.buildingCitySelect) {
+            elements.buildingCitySelect.addEventListener('change', function () {
+                global.DataDisplay.updateBuildingDisplay(elements, state);
+            });
+        }
+
         mapCanvas.addEventListener('click', function (e) {
             if (state.evacuationEnabled && state.selectedShelterIndex !== undefined && state.selectedShelterIndex !== null) {
                 handleEvacCanvasClick(e, mapCanvas, state, mapCtx, mapWrapper, elements);
@@ -826,6 +860,7 @@
             } else {
                 handleCanvasClick(e, mapCanvas, state, mapHint, dataElements, mapCtx, mapWrapper, elements);
             }
+            global.DataDisplay.updateBuildingDisplay(elements, state);
         });
 
         let resizeTimeout;

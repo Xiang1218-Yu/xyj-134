@@ -101,6 +101,7 @@
         window.UI.syncTerrainControlsFromState(state, elements);
         window.UI.updateAllCalculations(state);
         window.DataDisplay.updateDataDisplay(dataElements, state);
+        window.DataDisplay.populateBuildingCitySelect(elements, state.cities);
 
         initEvacuation(elements, rect.width, rect.height);
 

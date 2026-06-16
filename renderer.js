@@ -575,6 +575,9 @@
     }
 
     function drawCities(mapCtx, state) {
+        const BUILDING_TYPES = global.Physics.BUILDING_TYPES;
+        const BUILDING_TYPE_ORDER = global.Physics.BUILDING_TYPE_ORDER;
+
         state.cities.forEach(function (city, index) {
             const isCentral = index === 0;
             const size = city.size;
@@ -601,6 +604,28 @@
                 const by = city.y + Math.sin(angle) * dist;
                 const bs = (isCentral ? 4 : 3) + Math.random() * 3;
                 mapCtx.fillRect(bx - bs / 2, by - bs / 2, bs, bs);
+            }
+
+            if (city.buildingDistribution && size > 18) {
+                const ringRadius = size + 4;
+                const ringWidth = 3;
+                let startAngle = -Math.PI / 2;
+
+                BUILDING_TYPE_ORDER.forEach(function (type) {
+                    const ratio = city.buildingDistribution[type] || 0;
+                    if (ratio <= 0.01) return;
+
+                    const bt = BUILDING_TYPES[type];
+                    const arcAngle = ratio * Math.PI * 2;
+
+                    mapCtx.beginPath();
+                    mapCtx.arc(city.x, city.y, ringRadius, startAngle, startAngle + arcAngle);
+                    mapCtx.strokeStyle = bt.color;
+                    mapCtx.lineWidth = ringWidth;
+                    mapCtx.stroke();
+
+                    startAngle += arcAngle;
+                });
             }
 
             if (city.destroyed) {

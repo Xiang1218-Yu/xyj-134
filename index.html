@@ -367,6 +367,115 @@
                     </div>
                 </div>
 
+                <div class="building-panel" id="buildingPanel">
+                    <div class="panel-header">
+                        <h3>🏗️ 建筑结构等级</h3>
+                        <div class="building-view-toggle">
+                            <button class="building-toggle-btn active" data-building-view="summary">综合</button>
+                            <button class="building-toggle-btn" data-building-view="byType">按类型</button>
+                            <button class="building-toggle-btn" data-building-view="byDamage">按破坏</button>
+                        </div>
+                    </div>
+
+                    <div class="building-summary" id="buildingSummaryView">
+                        <div class="building-stats-grid">
+                            <div class="building-stat-item">
+                                <span class="building-stat-icon">🏢</span>
+                                <div>
+                                    <div class="building-stat-label">总人口</div>
+                                    <div class="building-stat-value" id="buildingTotalPop">0</div>
+                                </div>
+                            </div>
+                            <div class="building-stat-item">
+                                <span class="building-stat-icon">💥</span>
+                                <div>
+                                    <div class="building-stat-label">建筑摧毁人口</div>
+                                    <div class="building-stat-value danger" id="buildingDestroyedPop">0</div>
+                                </div>
+                            </div>
+                            <div class="building-stat-item">
+                                <span class="building-stat-icon">📐</span>
+                                <div>
+                                    <div class="building-stat-label">平均结构强度</div>
+                                    <div class="building-stat-value" id="buildingAvgStrength">0</div>
+                                </div>
+                            </div>
+                            <div class="building-stat-item">
+                                <span class="building-stat-icon">💚</span>
+                                <div>
+                                    <div class="building-stat-label">整体存活率</div>
+                                    <div class="building-stat-value success" id="buildingSurvivalRate">0%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="building-overpressure-info">
+                            <div class="overpressure-header">
+                                <span>冲击波超压分布</span>
+                                <span class="overpressure-value" id="maxOverpressure">0 psi</span>
+                            </div>
+                            <div class="overpressure-bar-container">
+                                <div class="overpressure-bar" id="overpressureBar"></div>
+                            </div>
+                            <div class="overpressure-labels">
+                                <span>0</span>
+                                <span>5 psi</span>
+                                <span>10 psi</span>
+                                <span>20+ psi</span>
+                            </div>
+                        </div>
+
+                        <div class="building-damage-legend">
+                            <div class="damage-legend-title">破坏等级说明</div>
+                            <div class="damage-legend-items">
+                                <div class="damage-legend-item">
+                                    <span class="damage-dot" style="background: #4caf50;"></span>
+                                    <span class="damage-name">完好</span>
+                                    <span class="damage-desc">无明显损坏</span>
+                                </div>
+                                <div class="damage-legend-item">
+                                    <span class="damage-dot" style="background: #ffeb3b;"></span>
+                                    <span class="damage-name">轻微</span>
+                                    <span class="damage-desc">门窗破损</span>
+                                </div>
+                                <div class="damage-legend-item">
+                                    <span class="damage-dot" style="background: #ff9800;"></span>
+                                    <span class="damage-name">中度</span>
+                                    <span class="damage-desc">墙体开裂</span>
+                                </div>
+                                <div class="damage-legend-item">
+                                    <span class="damage-dot" style="background: #f44336;"></span>
+                                    <span class="damage-name">严重</span>
+                                    <span class="damage-desc">结构受损</span>
+                                </div>
+                                <div class="damage-legend-item">
+                                    <span class="damage-dot" style="background: #9c27b0;"></span>
+                                    <span class="damage-name">摧毁</span>
+                                    <span class="damage-desc">完全倒塌</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="building-by-type" id="buildingByTypeView" style="display: none;">
+                        <div class="building-type-list" id="buildingTypeList"></div>
+                    </div>
+
+                    <div class="building-by-damage" id="buildingByDamageView" style="display: none;">
+                        <div class="damage-distribution">
+                            <div class="damage-bar-chart" id="damageBarChart"></div>
+                        </div>
+                        <div class="damage-stats-list" id="damageStatsList"></div>
+                    </div>
+
+                    <div class="building-city-selector">
+                        <label>查看城市详情：</label>
+                        <select id="buildingCitySelect">
+                            <option value="">全部城市汇总</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="timeline-panel" id="timelinePanel">
                     <div class="panel-header">
                         <h3>⏱️ 时间轴推演</h3>

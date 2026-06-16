@@ -1777,3 +1777,390 @@ body::before {
         grid-template-columns: 1fr;
     }
 }
+
+.building-panel {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    gap: 12px;
+}
+
+.panel-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.building-view-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-primary);
+    padding: 3px;
+    border-radius: 8px;
+}
+
+.building-toggle-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.building-toggle-btn:hover {
+    color: var(--text-secondary);
+}
+
+.building-toggle-btn.active {
+    background: linear-gradient(135deg, var(--accent), var(--warning));
+    color: white;
+    font-weight: 500;
+}
+
+.building-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.building-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    border-left: 3px solid #4a9eff;
+}
+
+.building-stat-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.building-stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.building-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.building-stat-value.danger {
+    color: var(--danger);
+}
+
+.building-stat-value.success {
+    color: #00cc66;
+}
+
+.building-overpressure-info {
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.overpressure-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.overpressure-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.overpressure-bar-container {
+    height: 12px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.overpressure-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4caf50, #ffeb3b, #ff9800, #f44336, #9c27b0);
+    border-radius: 6px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.overpressure-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.building-damage-legend {
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.damage-legend-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.damage-legend-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.damage-legend-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    text-align: center;
+}
+
+.damage-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.damage-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.damage-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.building-by-type {
+    margin-bottom: 16px;
+}
+
+.building-type-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.building-type-item {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 12px;
+    border-left: 4px solid #888;
+}
+
+.building-type-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.building-type-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.building-type-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.building-type-pop {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.building-type-bar-container {
+    height: 8px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.building-type-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.building-type-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+}
+
+.building-type-deaths {
+    color: var(--danger);
+}
+
+.building-type-injured {
+    color: var(--warning);
+}
+
+.building-type-damage {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.building-by-damage {
+    margin-bottom: 16px;
+}
+
+.damage-distribution {
+    margin-bottom: 14px;
+}
+
+.damage-bar-chart {
+    display: flex;
+    align-items: flex-end;
+    height: 120px;
+    gap: 6px;
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.damage-bar-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+}
+
+.damage-bar-fill {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: height 0.3s ease;
+    min-height: 4px;
+}
+
+.damage-bar-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    text-align: center;
+}
+
+.damage-bar-value {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.damage-stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.damage-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+}
+
+.damage-stat-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.damage-stat-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.damage-stat-percent {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+.building-city-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.building-city-selector label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.building-city-selector select {
+    flex: 1;
+    padding: 6px 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.building-city-selector select:focus {
+    border-color: var(--accent);
+}
+
+@media (max-width: 900px) {
+    .building-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .damage-legend-items {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
