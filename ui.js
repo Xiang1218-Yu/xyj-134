@@ -23,7 +23,16 @@
         'buildingSurvivalRate', 'maxOverpressure', 'overpressureBar',
         'buildingTypeList', 'damageBarChart', 'damageStatsList',
         'buildingCitySelect', 'buildingSummaryView', 'buildingByTypeView', 'buildingByDamageView',
-        'buildingPanel'
+        'buildingPanel',
+        'addZoneBtn', 'resetZonesBtn', 'zoneList',
+        'zoneEditorModal', 'zoneEditorOverlay', 'zoneEditorClose',
+        'zoneEditorCancel', 'zoneEditorSave', 'zoneEditorTitle',
+        'zoneKey', 'zoneLabel', 'zoneColor', 'zoneColorText',
+        'zoneDescription', 'zoneMinRadius', 'zoneRadiusFormula',
+        'zoneHeightFactor', 'zoneDash', 'zoneOverpressure',
+        'zoneAltitudeSens', 'zoneAltitudeSensValue',
+        'zoneDestroyed', 'zoneDeathRate', 'zoneDeathRateValue',
+        'zoneInjuryRate', 'zoneInjuryRateValue'
     ];
 
     function getControlElements() {
@@ -875,6 +884,302 @@
                 global.Renderer.drawMap(mapCtx, mapWrapper, state);
             }, 200);
         });
+
+        let editingZoneKey = null;
+        let draggedZoneIndex = null;
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(function (x) {
+                const hex = Math.round(x).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function refreshZoneList(state, elements, mapCtx, mapWrapper, dataElements) {
+            if (!elements.zoneList) return;
+
+            const zones = global.Physics.getZones();
+            elements.zoneList.innerHTML = '';
+
+            zones.forEach(function (zone, index) {
+                const item = document.createElement('div');
+                item.className = 'zone-item';
+                item.draggable = true;
+                item.dataset.zoneKey = zone.key;
+                item.dataset.index = index;
+
+                const color = zone.color || [128, 128, 128];
+                const hexColor = rgbToHex(color[0], color[1], color[2]);
+
+                item.innerHTML = `
+                    <div class="zone-drag-handle" title="拖动排序">⋮⋮</div>
+                    <div class="zone-color-preview" style="background: ${hexColor};"></div>
+                    <div class="zone-info">
+                        <div class="zone-name">${zone.label}</div>
+                        <div class="zone-key">${zone.key} · ${zone.overpressureThreshold} psi</div>
+                    </div>
+                    <div class="zone-actions">
+                        <button class="zone-edit-btn" title="编辑">✏️</button>
+                        <button class="zone-delete-btn" title="删除">🗑️</button>
+                    </div>
+                `;
+
+                item.addEventListener('dragstart', function (e) {
+                    draggedZoneIndex = index;
+                    item.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                item.addEventListener('dragend', function () {
+                    item.classList.remove('dragging');
+                    draggedZoneIndex = null;
+                    document.querySelectorAll('.zone-item').forEach(function (el) {
+                        el.classList.remove('drag-over');
+                    });
+                });
+
+                item.addEventListener('dragover', function (e) {
+                    e.preventDefault();
+                    if (draggedZoneIndex !== null && draggedZoneIndex !== index) {
+                        item.classList.add('drag-over');
+                    }
+                });
+
+                item.addEventListener('dragleave', function () {
+                    item.classList.remove('drag-over');
+                });
+
+                item.addEventListener('drop', function (e) {
+                    e.preventDefault();
+                    item.classList.remove('drag-over');
+                    if (draggedZoneIndex !== null && draggedZoneIndex !== index) {
+                        const allZones = global.Physics.getZones();
+                        const draggedKey = allZones[draggedZoneIndex].key;
+                        global.Physics.moveZone(draggedKey, index);
+                        refreshAllZoneRelated(state, elements, mapCtx, mapWrapper, dataElements);
+                    }
+                });
+
+                const editBtn = item.querySelector('.zone-edit-btn');
+                editBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    openZoneEditor(zone, elements);
+                });
+
+                const deleteBtn = item.querySelector('.zone-delete-btn');
+                deleteBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (zones.length <= 1) {
+                        alert('至少需要保留一个圈层！');
+                        return;
+                    }
+                    if (confirm('确定要删除圈层 "' + zone.label + '" 吗？')) {
+                        global.Physics.removeZone(zone.key);
+                        refreshAllZoneRelated(state, elements, mapCtx, mapWrapper, dataElements);
+                    }
+                });
+
+                elements.zoneList.appendChild(item);
+            });
+        }
+
+        function refreshAllZoneRelated(state, elements, mapCtx, mapWrapper, dataElements) {
+            updateAllCalculations(state);
+            global.DataDisplay.generateDataPanels(dataElements);
+            global.DataDisplay.generateLegend(dataElements);
+            global.DataDisplay.updateDataDisplay(dataElements, state);
+            global.Renderer.drawMap(mapCtx, mapWrapper, state);
+            refreshZoneList(state, elements, mapCtx, mapWrapper, dataElements);
+        }
+
+        function openZoneEditor(zone, elements) {
+            editingZoneKey = zone ? zone.key : null;
+
+            if (zone) {
+                elements.zoneEditorTitle.textContent = '编辑圈层: ' + zone.label;
+                elements.zoneKey.value = zone.key;
+                elements.zoneLabel.value = zone.label;
+                const colorHex = rgbToHex(zone.color[0], zone.color[1], zone.color[2]);
+                elements.zoneColor.value = colorHex;
+                elements.zoneColorText.value = colorHex;
+                elements.zoneDescription.value = zone.description || '';
+                elements.zoneMinRadius.value = zone.minRadius || 0.5;
+                elements.zoneRadiusFormula.value = zone.radiusFormula || '';
+                elements.zoneHeightFactor.value = zone.heightFactorType || 'height';
+                elements.zoneDash.value = typeof zone.dash === 'string' ? zone.dash : (zone.dash ? 'dashed4' : 'solid');
+                elements.zoneOverpressure.value = zone.overpressureThreshold || 5;
+                elements.zoneAltitudeSens.value = zone.altitudeSensitivity || 0.3;
+                elements.zoneAltitudeSensValue.textContent = (zone.altitudeSensitivity || 0.3).toFixed(2);
+                elements.zoneDestroyed.checked = zone.casualtyRates ? zone.casualtyRates.destroyed : false;
+                elements.zoneDeathRate.value = zone.casualtyRates ? zone.casualtyRates.deaths : 0.1;
+                elements.zoneDeathRateValue.textContent = (zone.casualtyRates ? zone.casualtyRates.deaths : 0.1).toFixed(2);
+                elements.zoneInjuryRate.value = zone.casualtyRates ? zone.casualtyRates.injured : 0.2;
+                elements.zoneInjuryRateValue.textContent = (zone.casualtyRates ? zone.casualtyRates.injured : 0.2).toFixed(2);
+            } else {
+                elements.zoneEditorTitle.textContent = '新增圈层';
+                elements.zoneKey.value = '';
+                elements.zoneLabel.value = '';
+                elements.zoneColor.value = '#ff6600';
+                elements.zoneColorText.value = '#ff6600';
+                elements.zoneDescription.value = '';
+                elements.zoneMinRadius.value = 0.5;
+                elements.zoneRadiusFormula.value = '1.0 * Math.pow(W, 0.4)';
+                elements.zoneHeightFactor.value = 'height';
+                elements.zoneDash.value = 'solid';
+                elements.zoneOverpressure.value = 5;
+                elements.zoneAltitudeSens.value = 0.3;
+                elements.zoneAltitudeSensValue.textContent = '0.30';
+                elements.zoneDestroyed.checked = false;
+                elements.zoneDeathRate.value = 0.1;
+                elements.zoneDeathRateValue.textContent = '0.10';
+                elements.zoneInjuryRate.value = 0.2;
+                elements.zoneInjuryRateValue.textContent = '0.20';
+            }
+
+            elements.zoneEditorModal.style.display = 'flex';
+        }
+
+        function closeZoneEditor(elements) {
+            elements.zoneEditorModal.style.display = 'none';
+            editingZoneKey = null;
+        }
+
+        function handleZoneSave(state, elements, mapCtx, mapWrapper, dataElements) {
+            const key = elements.zoneKey.value.trim();
+            const label = elements.zoneLabel.value.trim();
+
+            if (!key || !label) {
+                alert('圈层标识和名称不能为空！');
+                return;
+            }
+
+            if (!/^[a-z_][a-z0-9_]*$/i.test(key)) {
+                alert('圈层标识只能包含字母、数字和下划线，且必须以字母或下划线开头！');
+                return;
+            }
+
+            const colorMatch = elements.zoneColorText.value.match(/^#?([0-9a-f]{6})$/i);
+            if (!colorMatch) {
+                alert('请输入有效的颜色值（如 #ff0000）！');
+                return;
+            }
+
+            const colorHex = colorMatch[1];
+            const color = [
+                parseInt(colorHex.substr(0, 2), 16),
+                parseInt(colorHex.substr(2, 2), 16),
+                parseInt(colorHex.substr(4, 2), 16)
+            ];
+
+            let dashValue = elements.zoneDash.value;
+            if (dashValue === 'solid') dashValue = null;
+
+            const zoneDef = {
+                key: key,
+                label: label,
+                color: color,
+                description: elements.zoneDescription.value.trim(),
+                minRadius: parseFloat(elements.zoneMinRadius.value) || 0.1,
+                radiusFormula: elements.zoneRadiusFormula.value.trim(),
+                heightFactorType: elements.zoneHeightFactor.value,
+                dash: dashValue,
+                overpressureThreshold: parseFloat(elements.zoneOverpressure.value) || 0,
+                altitudeSensitivity: parseFloat(elements.zoneAltitudeSens.value) || 0,
+                casualtyRates: {
+                    deaths: parseFloat(elements.zoneDeathRate.value) || 0,
+                    injured: parseFloat(elements.zoneInjuryRate.value) || 0,
+                    destroyed: elements.zoneDestroyed.checked
+                }
+            };
+
+            let result;
+            if (editingZoneKey) {
+                result = global.Physics.updateZone(editingZoneKey, zoneDef);
+            } else {
+                result = global.Physics.addZone(zoneDef);
+            }
+
+            if (result.success) {
+                closeZoneEditor(elements);
+                refreshAllZoneRelated(state, elements, mapCtx, mapWrapper, dataElements);
+            } else {
+                alert('保存失败: ' + result.error);
+            }
+        }
+
+        if (elements.addZoneBtn) {
+            elements.addZoneBtn.addEventListener('click', function () {
+                openZoneEditor(null, elements);
+            });
+        }
+
+        if (elements.resetZonesBtn) {
+            elements.resetZonesBtn.addEventListener('click', function () {
+                if (confirm('确定要恢复所有默认圈层设置吗？当前的自定义修改将丢失。')) {
+                    global.Physics.resetZones();
+                    refreshAllZoneRelated(state, elements, mapCtx, mapWrapper, dataElements);
+                }
+            });
+        }
+
+        if (elements.zoneEditorClose) {
+            elements.zoneEditorClose.addEventListener('click', function () {
+                closeZoneEditor(elements);
+            });
+        }
+
+        if (elements.zoneEditorOverlay) {
+            elements.zoneEditorOverlay.addEventListener('click', function () {
+                closeZoneEditor(elements);
+            });
+        }
+
+        if (elements.zoneEditorCancel) {
+            elements.zoneEditorCancel.addEventListener('click', function () {
+                closeZoneEditor(elements);
+            });
+        }
+
+        if (elements.zoneEditorSave) {
+            elements.zoneEditorSave.addEventListener('click', function () {
+                handleZoneSave(state, elements, mapCtx, mapWrapper, dataElements);
+            });
+        }
+
+        if (elements.zoneColor && elements.zoneColorText) {
+            elements.zoneColor.addEventListener('input', function () {
+                elements.zoneColorText.value = elements.zoneColor.value;
+            });
+            elements.zoneColorText.addEventListener('input', function () {
+                if (/^#?[0-9a-f]{6}$/i.test(elements.zoneColorText.value)) {
+                    elements.zoneColor.value = elements.zoneColorText.value.startsWith('#') 
+                        ? elements.zoneColorText.value 
+                        : '#' + elements.zoneColorText.value;
+                }
+            });
+        }
+
+        if (elements.zoneAltitudeSens && elements.zoneAltitudeSensValue) {
+            elements.zoneAltitudeSens.addEventListener('input', function () {
+                elements.zoneAltitudeSensValue.textContent = parseFloat(elements.zoneAltitudeSens.value).toFixed(2);
+            });
+        }
+
+        if (elements.zoneDeathRate && elements.zoneDeathRateValue) {
+            elements.zoneDeathRate.addEventListener('input', function () {
+                elements.zoneDeathRateValue.textContent = parseFloat(elements.zoneDeathRate.value).toFixed(2);
+            });
+        }
+
+        if (elements.zoneInjuryRate && elements.zoneInjuryRateValue) {
+            elements.zoneInjuryRate.addEventListener('input', function () {
+                elements.zoneInjuryRateValue.textContent = parseFloat(elements.zoneInjuryRate.value).toFixed(2);
+            });
+        }
+
+        global.DataDisplay.generateDataPanels(dataElements);
+        global.DataDisplay.generateLegend(dataElements);
+        refreshZoneList(state, elements, mapCtx, mapWrapper, dataElements);
     }
 
     global.UI = {

@@ -20,15 +20,75 @@
     }
 
     const elementIds = [
-        'fireballRadius', 'fireballDiameter', 'radiationRadius',
-        'severeRadius', 'moderateRadius', 'lightRadius', 'thermalRadius',
         'estimatedDeaths', 'estimatedInjured', 'affectedArea', 'energyReleased',
         'statExplosionCount', 'statCombinedArea', 'statTotalArea', 'statOverlapArea',
         'buildingTotalPop', 'buildingDestroyedPop', 'buildingAvgStrength',
         'buildingSurvivalRate', 'maxOverpressure', 'overpressureBar',
         'buildingTypeList', 'damageBarChart', 'damageStatsList',
-        'buildingCitySelect', 'buildingSummaryView', 'buildingByTypeView', 'buildingByDamageView'
+        'buildingCitySelect', 'buildingSummaryView', 'buildingByTypeView', 'buildingByDamageView',
+        'dataPanels', 'legendItems'
     ];
+
+    let radiusElementMap = {};
+
+    function generateDataPanels(elements) {
+        if (!elements.dataPanels) return;
+
+        const zones = global.Physics.getZones();
+        elements.dataPanels.innerHTML = '';
+        radiusElementMap = {};
+
+        zones.forEach(function (zone) {
+            const card = document.createElement('div');
+            card.className = 'data-card';
+            card.dataset.zoneKey = zone.key;
+
+            const colorStyle = zone.color ? `border-left: 3px solid rgb(${zone.color[0]}, ${zone.color[1]}, ${zone.color[2]});` : '';
+            card.setAttribute('style', colorStyle);
+
+            const radiusId = zone.key + 'Radius';
+            const diameterId = zone.key + 'Diameter';
+
+            card.innerHTML = `
+                <h4>${zone.label}</h4>
+                <div class="data-value"><span id="${radiusId}">0</span> <span class="unit">公里</span></div>
+                <div class="data-desc">${zone.key === 'fireball' ? '直径约 <span id="' + diameterId + '">0</span> 公里' : (zone.description || zone.overpressureThreshold + ' psi 超压')}</div>
+            `;
+
+            elements.dataPanels.appendChild(card);
+
+            radiusElementMap[zone.key] = {
+                radius: document.getElementById(radiusId),
+                diameter: document.getElementById(diameterId)
+            };
+        });
+    }
+
+    function generateLegend(elements) {
+        if (!elements.legendItems) return;
+
+        const zones = global.Physics.getZones();
+        elements.legendItems.innerHTML = '';
+
+        zones.forEach(function (zone) {
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            item.dataset.zoneKey = zone.key;
+
+            const color = zone.color || [128, 128, 128];
+            const colorStyle = `background: rgb(${color[0]}, ${color[1]}, ${color[2]});`;
+
+            item.innerHTML = `
+                <span class="legend-color" style="${colorStyle}"></span>
+                <div class="legend-text">
+                    <strong>${zone.label}</strong>
+                    <span>${zone.description || ''}</span>
+                </div>
+            `;
+
+            elements.legendItems.appendChild(item);
+        });
+    }
 
     function getElements() {
         const elements = {};
@@ -44,14 +104,19 @@
     }
 
     function updateRadiiDisplay(elements, radii) {
-        if (!radii) radii = { fireball:0, radiation:0, severe:0, moderate:0, light:0, thermal:0 };
-        elements.fireballRadius.textContent = radii.fireball.toFixed(2);
-        elements.fireballDiameter.textContent = (radii.fireball * 2).toFixed(2);
-        elements.radiationRadius.textContent = radii.radiation.toFixed(2);
-        elements.severeRadius.textContent = radii.severe.toFixed(2);
-        elements.moderateRadius.textContent = radii.moderate.toFixed(2);
-        elements.lightRadius.textContent = radii.light.toFixed(2);
-        elements.thermalRadius.textContent = radii.thermal.toFixed(2);
+        const zones = global.Physics.getZones();
+
+        zones.forEach(function (zone) {
+            const radiusValue = radii && radii[zone.key] !== undefined ? radii[zone.key] : 0;
+            const elementEntry = radiusElementMap[zone.key];
+
+            if (elementEntry && elementEntry.radius) {
+                elementEntry.radius.textContent = radiusValue.toFixed(2);
+            }
+            if (elementEntry && elementEntry.diameter) {
+                elementEntry.diameter.textContent = (radiusValue * 2).toFixed(2);
+            }
+        });
     }
 
     function updateCombinedStats(elements, stats) {
@@ -131,12 +196,18 @@
     }
 
     function getMaxRadiiAcrossExplosions(explosions) {
-        const keys = ['fireball', 'radiation', 'severe', 'moderate', 'light', 'thermal'];
-        const result = { fireball: 0, radiation: 0, severe: 0, moderate: 0, light: 0, thermal: 0 };
+        const zones = global.Physics.getZones();
+        const result = {};
+        zones.forEach(function (z) {
+            result[z.key] = 0;
+        });
+
         explosions.forEach(function (exp) {
             if (!exp.radii) return;
-            keys.forEach(function (k) {
-                if (exp.radii[k] > result[k]) result[k] = exp.radii[k];
+            zones.forEach(function (z) {
+                if (exp.radii[z.key] !== undefined && exp.radii[z.key] > result[z.key]) {
+                    result[z.key] = exp.radii[z.key];
+                }
             });
         });
         return result;
@@ -386,6 +457,8 @@
         hexToRgba: hexToRgba,
         formatNumber: formatNumber,
         getElements: getElements,
+        generateDataPanels: generateDataPanels,
+        generateLegend: generateLegend,
         updateDataDisplay: updateDataDisplay,
         updateBuildingDisplay: updateBuildingDisplay,
         populateBuildingCitySelect: populateBuildingCitySelect

@@ -238,38 +238,238 @@
         };
     }
 
-    const ZONE_PRIORITY = ['fireball', 'radiation', 'severe', 'moderate', 'light', 'thermal'];
+    const DEFAULT_ZONE_DEFS = [
+        {
+            key: 'fireball',
+            label: '火球',
+            dash: null,
+            color: [255, 69, 0],
+            altitudeSensitivity: 0.05,
+            radiusFormula: '0.14 * Math.pow(W, 0.4)',
+            heightFactorType: 'height',
+            overpressureThreshold: 50,
+            casualtyRates: { deaths: 0.99, injured: 0, destroyed: true },
+            description: '一切瞬间汽化',
+            minRadius: 0.1
+        },
+        {
+            key: 'radiation',
+            label: '致命辐射',
+            dash: [4, 4],
+            color: [0, 255, 136],
+            altitudeSensitivity: 0.30,
+            radiusFormula: '1.2 * Math.pow(W, 1/3) * (burstHeight < 300 ? 1.3 : 1.0)',
+            heightFactorType: 'pressure',
+            overpressureThreshold: 10,
+            casualtyRates: { deaths: 0.85, injured: 0.1, destroyed: true },
+            description: '500 雷姆以上，数日内死亡',
+            minRadius: 0.3
+        },
+        {
+            key: 'severe',
+            label: '严重破坏',
+            dash: null,
+            color: [255, 0, 0],
+            altitudeSensitivity: 0.50,
+            radiusFormula: '0.7 * Math.pow(W, 1/3) * 2.5',
+            heightFactorType: 'height',
+            overpressureThreshold: 20,
+            casualtyRates: { deaths: 0.5, injured: 0.4, destroyed: true },
+            description: '建筑物全毁，人员必死',
+            minRadius: 0.5
+        },
+        {
+            key: 'moderate',
+            label: '中度破坏',
+            dash: null,
+            color: [255, 136, 0],
+            altitudeSensitivity: 0.40,
+            radiusFormula: '0.7 * Math.pow(W, 1/3) * 4.5',
+            heightFactorType: 'height',
+            overpressureThreshold: 5,
+            casualtyRates: { deaths: 0.15, injured: 0.5, destroyed: false },
+            description: '房屋倒塌，严重伤亡',
+            minRadius: 1.0
+        },
+        {
+            key: 'light',
+            label: '轻度破坏',
+            dash: null,
+            color: [255, 221, 0],
+            altitudeSensitivity: 0.30,
+            radiusFormula: '0.7 * Math.pow(W, 1/3) * 8',
+            heightFactorType: 'height',
+            overpressureThreshold: 1,
+            casualtyRates: { deaths: 0.02, injured: 0.2, destroyed: false },
+            description: '玻璃破碎，轻伤',
+            minRadius: 2.0
+        },
+        {
+            key: 'thermal',
+            label: '热辐射',
+            dash: [8, 4],
+            color: [255, 102, 170],
+            altitudeSensitivity: 0.15,
+            radiusFormula: '2.8 * Math.pow(W, 0.41)',
+            heightFactorType: 'thermal',
+            overpressureThreshold: 0.1,
+            casualtyRates: { deaths: 0, injured: 0.05, destroyed: false },
+            description: '三度烧伤，引燃可燃物',
+            minRadius: 1.0
+        }
+    ];
 
-    const ZONE_ALTITUDE_SENSITIVITY = {
-        fireball: 0.05,
-        radiation: 0.30,
-        severe: 0.50,
-        moderate: 0.40,
-        light: 0.30,
-        thermal: 0.15
-    };
+    let ZONE_DEFS = JSON.parse(JSON.stringify(DEFAULT_ZONE_DEFS));
+
+    function getZones() {
+        return JSON.parse(JSON.stringify(ZONE_DEFS));
+    }
+
+    function getZoneKeys() {
+        return ZONE_DEFS.map(function (z) { return z.key; });
+    }
+
+    function getZonePriority() {
+        return ZONE_DEFS.map(function (z) { return z.key; });
+    }
+
+    function getZoneAltitudeSensitivity() {
+        const result = {};
+        ZONE_DEFS.forEach(function (z) {
+            result[z.key] = z.altitudeSensitivity;
+        });
+        return result;
+    }
+
+    function getZoneByKey(key) {
+        return ZONE_DEFS.find(function (z) { return z.key === key; }) || null;
+    }
+
+    function addZone(zoneDef) {
+        if (!zoneDef || !zoneDef.key || !zoneDef.label) {
+            return { success: false, error: '圈层key和label不能为空' };
+        }
+        if (ZONE_DEFS.some(function (z) { return z.key === zoneDef.key; })) {
+            return { success: false, error: '圈层key已存在' };
+        }
+
+        const newZone = {
+            key: zoneDef.key,
+            label: zoneDef.label,
+            dash: zoneDef.dash || null,
+            color: zoneDef.color || [128, 128, 128],
+            altitudeSensitivity: zoneDef.altitudeSensitivity !== undefined ? zoneDef.altitudeSensitivity : 0.3,
+            radiusFormula: zoneDef.radiusFormula || '1.0 * Math.pow(W, 0.4)',
+            heightFactorType: zoneDef.heightFactorType || 'height',
+            overpressureThreshold: zoneDef.overpressureThreshold !== undefined ? zoneDef.overpressureThreshold : 5,
+            casualtyRates: zoneDef.casualtyRates || { deaths: 0.1, injured: 0.2, destroyed: false },
+            description: zoneDef.description || '',
+            minRadius: zoneDef.minRadius !== undefined ? zoneDef.minRadius : 0.5
+        };
+
+        ZONE_DEFS.splice(zoneDef.order !== undefined ? zoneDef.order : ZONE_DEFS.length, 0, newZone);
+        return { success: true, zone: newZone };
+    }
+
+    function updateZone(key, updates) {
+        const zoneIndex = ZONE_DEFS.findIndex(function (z) { return z.key === key; });
+        if (zoneIndex < 0) {
+            return { success: false, error: '圈层不存在' };
+        }
+
+        if (updates.key && updates.key !== key) {
+            if (ZONE_DEFS.some(function (z) { return z.key === updates.key; })) {
+                return { success: false, error: '新的key已存在' };
+            }
+        }
+
+        ZONE_DEFS[zoneIndex] = Object.assign({}, ZONE_DEFS[zoneIndex], updates);
+
+        if (updates.order !== undefined) {
+            const newOrder = Math.max(0, Math.min(ZONE_DEFS.length - 1, updates.order));
+            if (newOrder !== zoneIndex) {
+                const [removed] = ZONE_DEFS.splice(zoneIndex, 1);
+                ZONE_DEFS.splice(newOrder, 0, removed);
+            }
+        }
+
+        return { success: true, zone: ZONE_DEFS[zoneIndex] };
+    }
+
+    function removeZone(key) {
+        const zoneIndex = ZONE_DEFS.findIndex(function (z) { return z.key === key; });
+        if (zoneIndex < 0) {
+            return { success: false, error: '圈层不存在' };
+        }
+        if (ZONE_DEFS.length <= 1) {
+            return { success: false, error: '至少保留一个圈层' };
+        }
+
+        const removed = ZONE_DEFS.splice(zoneIndex, 1)[0];
+        return { success: true, zone: removed };
+    }
+
+    function resetZones() {
+        ZONE_DEFS = JSON.parse(JSON.stringify(DEFAULT_ZONE_DEFS));
+        return { success: true, zones: ZONE_DEFS };
+    }
+
+    function moveZone(key, newIndex) {
+        const zoneIndex = ZONE_DEFS.findIndex(function (z) { return z.key === key; });
+        if (zoneIndex < 0) {
+            return { success: false, error: '圈层不存在' };
+        }
+
+        const targetIndex = Math.max(0, Math.min(ZONE_DEFS.length - 1, newIndex));
+        if (targetIndex === zoneIndex) {
+            return { success: true, zone: ZONE_DEFS[zoneIndex] };
+        }
+
+        const [removed] = ZONE_DEFS.splice(zoneIndex, 1);
+        ZONE_DEFS.splice(targetIndex, 0, removed);
+        return { success: true, zone: removed };
+    }
+
+    function calculateZoneRadius(zone, W_megatons, burstHeight) {
+        try {
+            const W = W_megatons;
+            const height = burstHeight;
+            const result = eval(zone.radiusFormula);
+
+            const heightFactor = Math.max(0.85, 1 - (burstHeight / 10000));
+            const pressureFactor = Math.exp(-burstHeight / 2000);
+            const thermalFactor = burstHeight > 0 ? 1.15 : 0.9;
+
+            let finalRadius = result;
+            switch (zone.heightFactorType) {
+                case 'pressure':
+                    finalRadius = result * pressureFactor;
+                    break;
+                case 'thermal':
+                    finalRadius = result * thermalFactor;
+                    break;
+                case 'height':
+                default:
+                    finalRadius = result * heightFactor;
+                    break;
+            }
+
+            return Math.max(zone.minRadius, finalRadius);
+        } catch (e) {
+            console.error('圈层半径计算错误:', zone.key, e);
+            return zone.minRadius;
+        }
+    }
 
     function calculateRadii(yieldKilotons, burstHeight) {
         const W_megatons = yieldKilotons / 1000;
+        const result = {};
 
-        const fireballRadius = 0.14 * Math.pow(W_megatons, 0.4);
-        const radiationRadius = 1.2 * Math.pow(W_megatons, 1 / 3) * (burstHeight < 300 ? 1.3 : 1.0);
-        const severeRadius = 0.7 * Math.pow(W_megatons, 1 / 3) * 2.5;
-        const moderateRadius = 0.7 * Math.pow(W_megatons, 1 / 3) * 4.5;
-        const lightRadius = 0.7 * Math.pow(W_megatons, 1 / 3) * 8;
-        const thermalRadius = 2.8 * Math.pow(W_megatons, 0.41);
+        ZONE_DEFS.forEach(function (zone) {
+            result[zone.key] = calculateZoneRadius(zone, W_megatons, burstHeight);
+        });
 
-        const heightFactor = Math.max(0.85, 1 - (burstHeight / 10000));
-        const pressureFactor = Math.exp(-burstHeight / 2000);
-
-        return {
-            fireball: Math.max(0.1, fireballRadius * heightFactor),
-            radiation: Math.max(0.3, radiationRadius * pressureFactor),
-            severe: Math.max(0.5, severeRadius * heightFactor),
-            moderate: Math.max(1.0, moderateRadius * heightFactor),
-            light: Math.max(2.0, lightRadius * heightFactor),
-            thermal: Math.max(1.0, thermalRadius * (burstHeight > 0 ? 1.15 : 0.9))
-        };
+        return result;
     }
 
     function generateBuildingDistribution(isCentral, size) {
@@ -390,6 +590,7 @@
     }
 
     function getWorstZoneForCity(city, explosions, scale) {
+        const zonePriority = getZonePriority();
         let worstZoneIndex = -1;
 
         explosions.forEach(function (exp) {
@@ -399,9 +600,9 @@
             const distPx = Math.sqrt(dx * dx + dy * dy);
             const distKm = distPx / scale;
 
-            for (let i = 0; i < ZONE_PRIORITY.length; i++) {
-                const zoneName = ZONE_PRIORITY[i];
-                if (distKm <= exp.radii[zoneName]) {
+            for (let i = 0; i < zonePriority.length; i++) {
+                const zoneName = zonePriority[i];
+                if (exp.radii[zoneName] !== undefined && distKm <= exp.radii[zoneName]) {
                     if (worstZoneIndex < 0 || i < worstZoneIndex) {
                         worstZoneIndex = i;
                     }
@@ -410,32 +611,32 @@
             }
         });
 
-        return worstZoneIndex >= 0 ? ZONE_PRIORITY[worstZoneIndex] : null;
+        return worstZoneIndex >= 0 ? zonePriority[worstZoneIndex] : null;
     }
 
     function calculateCasualtiesForZone(pop, zoneName) {
-        switch (zoneName) {
-            case 'fireball':
-                return { deaths: pop * 0.99, injured: 0, destroyed: true };
-            case 'radiation':
-                return { deaths: pop * 0.85, injured: pop * 0.1, destroyed: true };
-            case 'severe':
-                return { deaths: pop * 0.5, injured: pop * 0.4, destroyed: true };
-            case 'moderate':
-                return { deaths: pop * 0.15, injured: pop * 0.5, destroyed: false };
-            case 'light':
-                return { deaths: pop * 0.02, injured: pop * 0.2, destroyed: false };
-            case 'thermal':
-                return { deaths: 0, injured: pop * 0.05, destroyed: false };
-            default:
-                return { deaths: 0, injured: 0, destroyed: false };
+        const zone = getZoneByKey(zoneName);
+        if (zone && zone.casualtyRates) {
+            return {
+                deaths: pop * (zone.casualtyRates.deaths || 0),
+                injured: pop * (zone.casualtyRates.injured || 0),
+                destroyed: zone.casualtyRates.destroyed || false
+            };
         }
+        return { deaths: 0, injured: 0, destroyed: false };
     }
 
     function calculateCityBuildingDamage(city, explosions, scale, terrain) {
         let maxOverpressure = 0;
-        let worstFireball = false;
-        let worstRadiation = false;
+        let worstSpecialZone = null;
+        let maxSpecialOverpressure = 0;
+        let additionalRadiationDeaths = 0;
+        let additionalRadiationInjured = 0;
+
+        const zones = getZones();
+        const specialZoneKeys = zones.filter(function (z) {
+            return z.casualtyRates && z.casualtyRates.destroyed;
+        }).map(function (z) { return z.key; });
 
         explosions.forEach(function (exp) {
             if (!exp.explosionCenter || !exp.radii) return;
@@ -446,10 +647,13 @@
 
             let effectiveDistKm = distKm;
             if (terrain && terrain.features && terrain.features.length > 0) {
+                const firstDestructiveZone = zones.find(function (z) {
+                    return z.casualtyRates && z.casualtyRates.destroyed;
+                });
                 const attenuationResult = calculatePathAttenuation(
                     exp.explosionCenter.x, exp.explosionCenter.y,
                     city.x, city.y,
-                    terrain, 'severe', scale, exp.burstHeight
+                    terrain, firstDestructiveZone ? firstDestructiveZone.key : 'severe', scale, exp.burstHeight
                 );
                 effectiveDistKm = distKm / Math.max(0.3, attenuationResult.attenuation);
             }
@@ -459,12 +663,20 @@
                 maxOverpressure = op;
             }
 
-            if (distKm <= exp.radii.fireball) {
-                worstFireball = true;
-            }
-            if (distKm <= exp.radii.radiation) {
-                worstRadiation = true;
-            }
+            zones.forEach(function (zone) {
+                if (exp.radii[zone.key] !== undefined && distKm <= exp.radii[zone.key]) {
+                    if (zone.casualtyRates && zone.casualtyRates.destroyed) {
+                        if (zone.overpressureThreshold > maxSpecialOverpressure) {
+                            maxSpecialOverpressure = zone.overpressureThreshold;
+                            worstSpecialZone = zone.key;
+                        }
+                    }
+                    if (zone.key === 'radiation') {
+                        additionalRadiationDeaths += city.population * 0.05;
+                        additionalRadiationInjured += city.population * 0.08;
+                    }
+                }
+            });
         });
 
         const buildingResults = {};
@@ -486,8 +698,8 @@
             const popInBuilding = city.population * ratio;
 
             let adjustedOverpressure = maxOverpressure;
-            if (worstFireball) {
-                adjustedOverpressure = Math.max(adjustedOverpressure, 50);
+            if (worstSpecialZone && maxSpecialOverpressure > 0) {
+                adjustedOverpressure = Math.max(adjustedOverpressure, maxSpecialOverpressure);
             }
 
             const result = calculateBuildingCasualties(
@@ -517,10 +729,8 @@
             distByDamage[result.damageLevel] = (distByDamage[result.damageLevel] || 0) + popInBuilding;
         });
 
-        if (worstRadiation) {
-            totalDeaths += city.population * 0.05;
-            totalInjured += city.population * 0.08;
-        }
+        totalDeaths += additionalRadiationDeaths;
+        totalInjured += additionalRadiationInjured;
 
         const avgStructureFactor = calculateAvgStructureFactor(city.buildingDistribution);
 
@@ -534,8 +744,8 @@
             totalDestroyedPop: totalDestroyedPop,
             totalAffectedPop: totalAffectedPop,
             distByDamage: distByDamage,
-            inFireball: worstFireball,
-            inRadiation: worstRadiation,
+            worstSpecialZone: worstSpecialZone,
+            inSpecialZone: worstSpecialZone !== null,
             survivalRate: city.population > 0 ? 1 - totalDeaths / city.population : 0
         };
     }
@@ -934,7 +1144,8 @@
         }
 
         const samples = Math.max(8, Math.min(64, Math.floor(distPx / 10)));
-        const sensitivity = ZONE_ALTITUDE_SENSITIVITY[zoneName] || 0.2;
+        const altitudeSensitivity = getZoneAltitudeSensitivity();
+        const sensitivity = altitudeSensitivity[zoneName] || 0.2;
         const burstHeight = burstHeightMeters || 0;
 
         let totalObstruction = 0;
@@ -1046,8 +1257,9 @@
             const distPx = Math.sqrt(dx * dx + dy * dy);
             const distKm = distPx / scale;
 
-            for (let i = 0; i < ZONE_PRIORITY.length; i++) {
-                const zoneName = ZONE_PRIORITY[i];
+            const zonePriority = getZonePriority();
+            for (let i = 0; i < zonePriority.length; i++) {
+                const zoneName = zonePriority[i];
                 const effectiveRadius = calculateEffectiveRadius(exp, point.x, point.y, zoneName, terrain, scale);
 
                 if (distKm <= effectiveRadius) {
@@ -1060,7 +1272,8 @@
             }
         });
 
-        return worstZoneIndex >= 0 ? ZONE_PRIORITY[worstZoneIndex] : null;
+        const zonePriorityFinal = getZonePriority();
+        return worstZoneIndex >= 0 ? zonePriorityFinal[worstZoneIndex] : null;
     }
 
     function getWorstZoneForCityTerrain(city, explosions, scale, terrain) {
@@ -1505,10 +1718,20 @@
 
     global.Physics = {
         BOMB_TYPES: BOMB_TYPES,
-        ZONE_PRIORITY: ZONE_PRIORITY,
+        DEFAULT_ZONE_DEFS: DEFAULT_ZONE_DEFS,
+        getZones: getZones,
+        getZoneKeys: getZoneKeys,
+        getZonePriority: getZonePriority,
+        getZoneAltitudeSensitivity: getZoneAltitudeSensitivity,
+        getZoneByKey: getZoneByKey,
+        addZone: addZone,
+        updateZone: updateZone,
+        removeZone: removeZone,
+        resetZones: resetZones,
+        moveZone: moveZone,
+        calculateZoneRadius: calculateZoneRadius,
         TERRAIN_FEATURE_TYPES: TERRAIN_FEATURE_TYPES,
         TERRAIN_PRESETS: TERRAIN_PRESETS,
-        ZONE_ALTITUDE_SENSITIVITY: ZONE_ALTITUDE_SENSITIVITY,
         ROAD_BASE_CAPACITY: ROAD_BASE_CAPACITY,
         VEHICLE_SPEED_KMH: VEHICLE_SPEED_KMH,
         PEOPLE_PER_VEHICLE: PEOPLE_PER_VEHICLE,

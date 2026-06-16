@@ -202,6 +202,22 @@
                     </button>
                 </section>
 
+                <section class="panel-section zone-editor-section">
+                    <h2>🎯 破坏圈层编辑器</h2>
+                    <div class="zone-editor-controls">
+                        <button id="addZoneBtn" class="add-btn">
+                            <span class="btn-icon">+</span> 新增圈层
+                        </button>
+                        <button id="resetZonesBtn" class="reset-zones-btn">
+                            <span class="btn-icon">↺</span> 恢复默认
+                        </button>
+                    </div>
+                    <div class="zone-list" id="zoneList"></div>
+                    <div class="zone-editor-hint">
+                        💡 拖动调整圈层顺序，点击编辑参数
+                    </div>
+                </section>
+
                 <section class="panel-section">
                     <h2>使用说明</h2>
                     <ul class="instructions">
@@ -213,6 +229,7 @@
                         <li>点击「同时引爆所有」触发联合动画</li>
                         <li>🏔️ <strong>地形影响</strong>：山脉/丘陵会阻挡冲击波和辐射</li>
                         <li>🎲 可在「地形高程设置」中切换预设和重新生成</li>
+                        <li>🎯 <strong>自定义圈层</strong>：在「破坏圈层编辑器」中增删改圈层</li>
                         <li>数据仅供科普参考</li>
                     </ul>
                 </section>
@@ -230,84 +247,10 @@
 
                 <div class="legend" id="legend">
                     <h3>破坏圈层图例</h3>
-                    <div class="legend-items">
-                        <div class="legend-item">
-                            <span class="legend-color fireball"></span>
-                            <div class="legend-text">
-                                <strong>火球 (Fireball)</strong>
-                                <span>一切瞬间汽化</span>
-                            </div>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color radiation"></span>
-                            <div class="legend-text">
-                                <strong>致命辐射</strong>
-                                <span>500 雷姆以上，数日内死亡</span>
-                            </div>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color severe"></span>
-                            <div class="legend-text">
-                                <strong>严重破坏区</strong>
-                                <span>建筑物全毁，人员必死</span>
-                            </div>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color moderate"></span>
-                            <div class="legend-text">
-                                <strong>中度破坏区</strong>
-                                <span>房屋倒塌，严重伤亡</span>
-                            </div>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color light"></span>
-                            <div class="legend-text">
-                                <strong>轻度破坏区</strong>
-                                <span>玻璃破碎，轻伤</span>
-                            </div>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color thermal"></span>
-                            <div class="legend-text">
-                                <strong>热辐射区</strong>
-                                <span>三度烧伤，引燃可燃物</span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="legend-items" id="legendItems"></div>
                 </div>
 
-                <div class="data-panels">
-                    <div class="data-card">
-                        <h4>火球半径</h4>
-                        <div class="data-value"><span id="fireballRadius">0</span> <span class="unit">公里</span></div>
-                        <div class="data-desc">直径约 <span id="fireballDiameter">0</span> 公里</div>
-                    </div>
-                    <div class="data-card">
-                        <h4>致命辐射</h4>
-                        <div class="data-value"><span id="radiationRadius">0</span> <span class="unit">公里</span></div>
-                        <div class="data-desc">500 rad 剂量范围</div>
-                    </div>
-                    <div class="data-card">
-                        <h4>严重破坏</h4>
-                        <div class="data-value"><span id="severeRadius">0</span> <span class="unit">公里</span></div>
-                        <div class="data-desc">20 psi 超压</div>
-                    </div>
-                    <div class="data-card">
-                        <h4>中度破坏</h4>
-                        <div class="data-value"><span id="moderateRadius">0</span> <span class="unit">公里</span></div>
-                        <div class="data-desc">5 psi 超压</div>
-                    </div>
-                    <div class="data-card">
-                        <h4>轻度破坏</h4>
-                        <div class="data-value"><span id="lightRadius">0</span> <span class="unit">公里</span></div>
-                        <div class="data-desc">1 psi 超压</div>
-                    </div>
-                    <div class="data-card">
-                        <h4>热辐射范围</h4>
-                        <div class="data-value"><span id="thermalRadius">0</span> <span class="unit">公里</span></div>
-                        <div class="data-desc">三度烧伤阈值</div>
-                    </div>
-                </div>
+                <div class="data-panels" id="dataPanels"></div>
 
                 <div class="casualty-panel" id="casualtyPanel">
                     <div class="panel-header">
@@ -669,14 +612,101 @@
         </footer>
     </div>
 
-    <script src="physics.js?v=20260615e"></script>
+    <div class="zone-editor-modal" id="zoneEditorModal" style="display: none;">
+        <div class="modal-overlay" id="zoneEditorOverlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="zoneEditorTitle">编辑圈层</h3>
+                <button class="modal-close" id="zoneEditorClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>圈层标识 (Key)</label>
+                    <input type="text" id="zoneKey" placeholder="英文标识，如 custom_zone">
+                </div>
+                <div class="form-group">
+                    <label>显示名称</label>
+                    <input type="text" id="zoneLabel" placeholder="显示名称，如 冲击波">
+                </div>
+                <div class="form-group">
+                    <label>圈层颜色</label>
+                    <div class="color-picker-row">
+                        <input type="color" id="zoneColor" value="#ff0000">
+                        <input type="text" id="zoneColorText" placeholder="#ff0000">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <input type="text" id="zoneDescription" placeholder="圈层描述">
+                </div>
+                <div class="form-group">
+                    <label>最小半径 (公里)</label>
+                    <input type="number" id="zoneMinRadius" step="0.1" min="0.1" value="0.5">
+                </div>
+                <div class="form-group">
+                    <label>半径计算公式</label>
+                    <input type="text" id="zoneRadiusFormula" placeholder="0.7 * Math.pow(W, 1/3) * 2.5">
+                    <div class="form-hint">W = 百万吨当量, 可用 Math.pow, Math.sqrt 等函数</div>
+                </div>
+                <div class="form-group">
+                    <label>高度因子类型</label>
+                    <select id="zoneHeightFactor">
+                        <option value="height">高度因子 (通用)</option>
+                        <option value="pressure">压力因子 (辐射类)</option>
+                        <option value="thermal">热因子 (热辐射类)</option>
+                        <option value="none">无</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>线条样式</label>
+                    <select id="zoneDash">
+                        <option value="solid">实线</option>
+                        <option value="dashed4">虚线 4px</option>
+                        <option value="dashed8">虚线 8px</option>
+                        <option value="dotted">点线</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>超压阈值 (psi)</label>
+                    <input type="number" id="zoneOverpressure" step="0.1" min="0" value="5">
+                </div>
+                <div class="form-group">
+                    <label>高度敏感度</label>
+                    <input type="range" id="zoneAltitudeSens" min="0" max="1" step="0.05" value="0.3">
+                    <div class="slider-value"><span id="zoneAltitudeSensValue">0.3</span></div>
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="zoneDestroyed">
+                    <label for="zoneDestroyed">此区域内建筑完全摧毁</label>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>死亡率</label>
+                        <input type="range" id="zoneDeathRate" min="0" max="1" step="0.01" value="0.1">
+                        <div class="slider-value"><span id="zoneDeathRateValue">0.10</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label>受伤率</label>
+                        <input type="range" id="zoneInjuryRate" min="0" max="1" step="0.01" value="0.2">
+                        <div class="slider-value"><span id="zoneInjuryRateValue">0.20</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn cancel" id="zoneEditorCancel">取消</button>
+                <button class="modal-btn primary" id="zoneEditorSave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="physics.js?v=20260616c"></script>
     <script src="audio.js?v=20260615f"></script>
-    <script src="data-display.js?v=20260615e"></script>
-    <script src="renderer.js?v=20260615e"></script>
+    <script src="data-display.js?v=20260616c"></script>
+    <script src="renderer.js?v=20260616c"></script>
     <script src="animation.js?v=20260616a"></script>
     <script src="timeline.js?v=20260615e"></script>
     <script src="evacuation.js?v=20260615e"></script>
-    <script src="ui.js?v=20260615e"></script>
-    <script src="app.js?v=20260615e"></script>
+    <script src="ui.js?v=20260616c"></script>
+    <script src="app.js?v=20260616c"></script>
 </body>
 </html>

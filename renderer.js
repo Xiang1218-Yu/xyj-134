@@ -3,24 +3,28 @@
 
     const rgba = global.DataDisplay.rgba;
 
-    const ZONE_DEFS = [
-        { key: 'thermal',  label: '热辐射',   dash: [8, 4] },
-        { key: 'light',    label: '轻度破坏', dash: null },
-        { key: 'moderate', label: '中度破坏', dash: null },
-        { key: 'severe',   label: '严重破坏', dash: null },
-        { key: 'radiation',label: '致命辐射', dash: [4, 4] },
-        { key: 'fireball', label: '火球',     dash: null }
-    ];
+    function getZoneDefs() {
+        return global.Physics.getZones();
+    }
 
     function getZoneColors(key, tintIndex) {
-        const palettes = [
-            { thermal: [255,102,170], light: [255,221,0], moderate: [255,136,0], severe: [255,0,0],   radiation: [0,255,136], fireball: [255,69,0]  },
-            { thermal: [102,170,255], light: [0,221,255], moderate: [0,136,255], severe: [0,85,255],  radiation: [170,102,255], fireball: [255,140,0] },
-            { thermal: [170,255,102], light: [100,255,100], moderate: [50,200,100], severe: [0,160,60], radiation: [255,255,100], fireball: [255,90,90] },
-            { thermal: [255,200,102], light: [255,200,150], moderate: [255,150,80], severe: [220,80,0], radiation: [255,100,255], fireball: [255,160,0] }
+        const zones = getZoneDefs();
+        const zone = zones.find(function (z) { return z.key === key; });
+        let baseColor = zone && zone.color ? zone.color : [128, 128, 128];
+
+        const tintMultipliers = [
+            [1.0, 1.0, 1.0],
+            [0.4, 0.67, 1.0],
+            [0.67, 1.0, 0.4],
+            [1.0, 0.78, 0.4]
         ];
-        const pal = palettes[tintIndex % palettes.length];
-        const c = pal[key];
+        const mult = tintMultipliers[tintIndex % tintMultipliers.length];
+        const c = [
+            Math.min(255, Math.round(baseColor[0] * mult[0])),
+            Math.min(255, Math.round(baseColor[1] * mult[1])),
+            Math.min(255, Math.round(baseColor[2] * mult[2]))
+        ];
+
         return {
             fill: rgba(c[0], c[1], c[2], 0.16),
             border: rgba(c[0], c[1], c[2], 0.55)
@@ -663,14 +667,26 @@
         });
     }
 
-    const OVERLAY_HATCH_COLORS = {
-        thermal:   { line: 'rgba(255, 80, 160, 0.55)', fill: 'rgba(255, 120, 180, 0.10)', angle: Math.PI / 5, spacing: 9 },
-        light:     { line: 'rgba(255, 220, 80, 0.55)', fill: 'rgba(255, 220, 100, 0.10)', angle: -Math.PI / 5, spacing: 9 },
-        moderate:  { line: 'rgba(255, 150, 60, 0.60)', fill: 'rgba(255, 160, 80, 0.12)', angle: Math.PI / 4, spacing: 8 },
-        severe:    { line: 'rgba(255, 70, 70, 0.65)',  fill: 'rgba(255, 90, 90, 0.12)',  angle: -Math.PI / 4, spacing: 7 },
-        radiation: { line: 'rgba(120, 255, 180, 0.60)', fill: 'rgba(140, 255, 180, 0.12)', angle: Math.PI / 3, spacing: 7 },
-        fireball:  { line: 'rgba(255, 200, 80, 0.70)', fill: 'rgba(255, 160, 60, 0.15)',  angle: 0, spacing: 6 }
-    };
+    function getOverlayHatchColors() {
+        const zones = getZoneDefs();
+        const result = {};
+        const angles = [Math.PI / 5, -Math.PI / 5, Math.PI / 4, -Math.PI / 4, Math.PI / 3, 0, Math.PI / 6, -Math.PI / 6];
+        const spacings = [9, 9, 8, 7, 7, 6, 8, 7];
+
+        zones.forEach(function (zone, index) {
+            const color = zone.color || [128, 128, 128];
+            const angle = angles[index % angles.length];
+            const spacing = spacings[index % spacings.length];
+            result[zone.key] = {
+                line: rgba(color[0], color[1], color[2], 0.55 + (index % 3) * 0.05),
+                fill: rgba(color[0], color[1], color[2], 0.10 + (index % 3) * 0.02),
+                angle: angle,
+                spacing: spacing
+            };
+        });
+
+        return result;
+    }
 
     const OVERLAP_LEVEL_STYLES = {
         2: null,
@@ -760,7 +776,9 @@
         }
 
         if (lvlStyle.hatch2) {
-            const baseStyle = OVERLAY_HATCH_COLORS[ZONE_DEFS[zoneIndex].key];
+            const zoneDefs = getZoneDefs();
+            const overlayHatchColors = getOverlayHatchColors();
+            const baseStyle = overlayHatchColors[zoneDefs[zoneIndex].key];
             const lineRgbMatch = baseStyle.line.match(/rgba?\(([^)]+)\)/);
             let lineColor = baseStyle.line;
             if (lineRgbMatch) {
@@ -887,7 +905,7 @@
         state.explosions.forEach(function (exp) {
             if (!exp.explosionCenter || !exp.radii) return;
             const circles = {};
-            ZONE_DEFS.forEach(function (zone) {
+            getZoneDefs().forEach(function (zone) {
                 circles[zone.key] = exp.radii[zone.key] * state.scale;
             });
             scaled.push({ cx: exp.explosionCenter.x, cy: exp.explosionCenter.y, r: circles });
@@ -897,10 +915,12 @@
 
         const n = scaled.length;
         const maxLevel = Math.min(n, 6);
+        const zoneDefs = getZoneDefs();
+        const overlayHatchColors = getOverlayHatchColors();
 
-        ZONE_DEFS.forEach(function (zone, zoneIndex) {
+        zoneDefs.forEach(function (zone, zoneIndex) {
             const zk = zone.key;
-            const baseStyle = OVERLAY_HATCH_COLORS[zk];
+            const baseStyle = overlayHatchColors[zk];
 
             for (let level = 2; level <= maxLevel; level++) {
                 const combos = generateCombinations(scaled, level);
@@ -940,19 +960,31 @@
         const isSelected = exp.id === state.selectedExplosionId;
         const terrain = state.terrainData;
         const useTerrain = terrain && terrain.features && terrain.features.length > 0;
+        const zoneDefs = getZoneDefs();
 
         const boundaryCache = {};
         if (useTerrain) {
-            ZONE_DEFS.forEach(function (zone) {
+            zoneDefs.forEach(function (zone) {
                 boundaryCache[zone.key] = global.Physics.generateTerrainBoundaryPolygon(
                     exp, zone.key, terrain, scale, 72
                 );
             });
         }
 
-        ZONE_DEFS.forEach(function (zone) {
+        zoneDefs.forEach(function (zone) {
             const colors = getZoneColors(zone.key, tintIndex);
             const pxRadius = radii[zone.key] * scale;
+
+            let dashStyle = zone.dash;
+            if (typeof dashStyle === 'string') {
+                switch (dashStyle) {
+                    case 'dashed4': dashStyle = [4, 4]; break;
+                    case 'dashed8': dashStyle = [8, 4]; break;
+                    case 'dotted': dashStyle = [2, 2]; break;
+                    case 'solid':
+                    default: dashStyle = null; break;
+                }
+            }
 
             if (useTerrain && boundaryCache[zone.key]) {
                 const points = boundaryCache[zone.key];
@@ -963,8 +995,8 @@
                 drawPolygonPathFromPoints(mapCtx, points, true);
                 mapCtx.strokeStyle = colors.border;
                 mapCtx.lineWidth = isSelected ? 2.5 : 1.5;
-                if (zone.dash) {
-                    mapCtx.setLineDash(zone.dash);
+                if (dashStyle) {
+                    mapCtx.setLineDash(dashStyle);
                 } else {
                     mapCtx.setLineDash([]);
                 }
@@ -978,8 +1010,8 @@
 
                 mapCtx.strokeStyle = colors.border;
                 mapCtx.lineWidth = isSelected ? 2.5 : 1.5;
-                if (zone.dash) {
-                    mapCtx.setLineDash(zone.dash);
+                if (dashStyle) {
+                    mapCtx.setLineDash(dashStyle);
                 } else {
                     mapCtx.setLineDash([]);
                 }
@@ -1096,8 +1128,8 @@
         drawAllOverlapHighlights: drawAllOverlapHighlights,
         drawPolygonPathFromPoints: drawPolygonPathFromPoints,
         getZoneColors: getZoneColors,
-        ZONE_DEFS: ZONE_DEFS,
-        OVERLAY_HATCH_COLORS: OVERLAY_HATCH_COLORS
+        getZoneDefs: getZoneDefs,
+        getOverlayHatchColors: getOverlayHatchColors
     };
 
 })(window);
