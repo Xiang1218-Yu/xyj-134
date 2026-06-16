@@ -349,6 +349,51 @@
         }
     }
 
+    function drawRippleWave(effectCtx, a, radius, waveWidth, alpha, color) {
+        if (radius <= 0 || waveWidth <= 0 || alpha <= 0) return;
+
+        const useTerrain = a.terrain && a.terrain.features && a.terrain.features.length > 0;
+        const segments = 96;
+
+        function getRadiusAtAngle(angle, baseRadius) {
+            if (!useTerrain || !a.explosionRef) return baseRadius;
+            return global.Physics.calculateShockwaveRadiusAtAngle(
+                a.explosionRef, angle, 'severe', a.terrain, a.scale, baseRadius
+            );
+        }
+
+        const innerRadius = Math.max(0, radius - waveWidth / 2);
+        const outerRadius = radius + waveWidth / 2;
+
+        effectCtx.beginPath();
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            const r = getRadiusAtAngle(angle, outerRadius);
+            const x = a.cx + Math.cos(angle) * r;
+            const y = a.cy + Math.sin(angle) * r;
+            if (i === 0) effectCtx.moveTo(x, y);
+            else effectCtx.lineTo(x, y);
+        }
+        for (let i = segments; i >= 0; i--) {
+            const angle = (i / segments) * Math.PI * 2;
+            const r = getRadiusAtAngle(angle, innerRadius);
+            const x = a.cx + Math.cos(angle) * r;
+            const y = a.cy + Math.sin(angle) * r;
+            effectCtx.lineTo(x, y);
+        }
+        effectCtx.closePath();
+
+        const grad = effectCtx.createRadialGradient(a.cx, a.cy, innerRadius, a.cx, a.cy, outerRadius);
+        grad.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+        grad.addColorStop(0.3, `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha * 0.5})`);
+        grad.addColorStop(0.5, `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`);
+        grad.addColorStop(0.7, `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha * 0.5})`);
+        grad.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+
+        effectCtx.fillStyle = grad;
+        effectCtx.fill();
+    }
+
     function drawPhaseShockwave(effectCtx, a, t) {
         const shockwave = calculateShockwaveFront(a, t);
         const phaseProgress = (t - 0.3) / 1.7;
@@ -365,25 +410,45 @@
         });
 
         if (shockwave.px > 0) {
-            const swAlpha = Math.max(0, 1 - shockwave.fraction * 0.7);
+            const swAlpha = Math.max(0, 1 - shockwave.fraction * 0.6);
+            const waveSpacing = 40;
+            const waveWidth = 25;
 
-            effectCtx.lineWidth = 10;
-            effectCtx.strokeStyle = rgba(255, 220, 120, swAlpha * 0.9);
-            drawShockwaveRing(effectCtx, a, shockwave.px, swAlpha, a.terrain, a.scale, 'severe');
+            const numWaves = 5;
+            for (let i = 0; i < numWaves; i++) {
+                const waveOffset = i * waveSpacing;
+                const waveRadius = shockwave.px - waveOffset;
 
-            for (let i = 0; i < 4; i++) {
-                const innerSW = shockwave.px * (1 - (i + 1) * 0.12);
-                if (innerSW > 0) {
-                    effectCtx.strokeStyle = rgba(255, 120, 60, swAlpha * 0.5);
-                    effectCtx.lineWidth = 3;
-                    drawShockwaveRing(effectCtx, a, innerSW, swAlpha, a.terrain, a.scale, 'severe');
+                if (waveRadius > 0) {
+                    const waveAlpha = swAlpha * Math.max(0, 1 - i * 0.22) * (0.4 + Math.sin(t * 8 - i * 1.5) * 0.3);
+                    const widthFactor = 1 + i * 0.3;
+                    const waveColor = i === 0
+                        ? { r: 255, g: 240, b: 180 }
+                        : i === 1
+                        ? { r: 255, g: 180, b: 100 }
+                        : i === 2
+                        ? { r: 255, g: 120, b: 60 }
+                        : i === 3
+                        ? { r: 220, g: 80, b: 40 }
+                        : { r: 180, g: 60, b: 30 };
+
+                    drawRippleWave(effectCtx, a, waveRadius, waveWidth * widthFactor, waveAlpha * 0.7, waveColor);
                 }
             }
 
-            const compressionAlpha = swAlpha * 0.3;
-            effectCtx.lineWidth = 15;
-            effectCtx.strokeStyle = rgba(200, 230, 255, compressionAlpha * 0.4);
-            drawShockwaveRing(effectCtx, a, shockwave.px * 1.02, compressionAlpha, a.terrain, a.scale, 'severe');
+            const glowRadius = shockwave.px * 0.98;
+            if (glowRadius > 0) {
+                const glowGrad = effectCtx.createRadialGradient(a.cx, a.cy, glowRadius * 0.95, a.cx, a.cy, glowRadius * 1.05);
+                glowGrad.addColorStop(0, `rgba(255, 255, 220, 0)`);
+                glowGrad.addColorStop(0.5, `rgba(255, 255, 200, ${swAlpha * 0.3})`);
+                glowGrad.addColorStop(1, `rgba(255, 255, 220, 0)`);
+
+                effectCtx.beginPath();
+                effectCtx.arc(a.cx, a.cy, glowRadius * 1.05, 0, Math.PI * 2);
+                effectCtx.arc(a.cx, a.cy, glowRadius * 0.95, 0, Math.PI * 2, true);
+                effectCtx.fillStyle = glowGrad;
+                effectCtx.fill();
+            }
         }
 
         a.particles.forEach(function (particle) {
@@ -622,22 +687,22 @@
         effectCtx.fill();
     }
 
-    function applyEarthquakeShake(effectCtx, width, height, totalQuakeIntensity, time) {
+    function applyEarthquakeShake(ctx, width, height, totalQuakeIntensity, time) {
         if (totalQuakeIntensity <= 0) return;
 
-        const maxShake = 15 * totalQuakeIntensity;
+        const maxShake = 12 * totalQuakeIntensity;
         const shakeX = (Math.sin(time * 50) + Math.sin(time * 37) * 0.5) * maxShake;
         const shakeY = (Math.sin(time * 43) + Math.sin(time * 29) * 0.5) * maxShake;
-        const rotate = (Math.sin(time * 25) * 0.02 + Math.sin(time * 18) * 0.01) * totalQuakeIntensity;
+        const rotate = (Math.sin(time * 25) * 0.015 + Math.sin(time * 18) * 0.008) * totalQuakeIntensity;
 
-        effectCtx.save();
-        effectCtx.translate(width / 2 + shakeX, height / 2 + shakeY);
-        effectCtx.rotate(rotate);
-        effectCtx.translate(-width / 2, -height / 2);
+        ctx.save();
+        ctx.translate(width / 2 + shakeX, height / 2 + shakeY);
+        ctx.rotate(rotate);
+        ctx.translate(-width / 2, -height / 2);
     }
 
-    function restoreFromEarthquake(effectCtx) {
-        effectCtx.restore();
+    function restoreFromEarthquake(ctx) {
+        ctx.restore();
     }
 
     function triggerSounds(animStates, tSeconds, intensity) {
@@ -741,8 +806,11 @@
             });
 
             if (totalQuakeIntensity > 0.05) {
-                applyEarthquakeShake(effectCtx, width, height, totalQuakeIntensity, tSeconds);
-                earthquakeActive = true;
+                applyEarthquakeShake(state.mapCtx, width, height, totalQuakeIntensity, tSeconds);
+                global.Renderer.drawMap(state.mapCtx, mapWrapper, state);
+                restoreFromEarthquake(state.mapCtx);
+            } else {
+                global.Renderer.drawMap(state.mapCtx, mapWrapper, state);
             }
 
             if (progress <= 0.05) {
@@ -755,11 +823,6 @@
                 animStates.forEach(function (a) { drawPhaseMushroom(effectCtx, a, tSeconds); });
             } else {
                 animStates.forEach(function (a) { drawPhaseFadeOut(effectCtx, a, tSeconds); });
-            }
-
-            if (earthquakeActive) {
-                restoreFromEarthquake(effectCtx);
-                earthquakeActive = false;
             }
 
             if (progress < 1) {
