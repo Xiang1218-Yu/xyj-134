@@ -84,7 +84,9 @@
             drawSheltersOnMap(mapCtx, state);
         }
 
-        drawExplosionZones(mapCtx, width, height, state);
+        if (!state.isAnimating) {
+            drawExplosionZones(mapCtx, width, height, state);
+        }
     }
 
     function drawTerrain(mapCtx, width, height) {
@@ -1089,7 +1091,13 @@
 
     global.Renderer = {
         setupCanvas: setupCanvas,
-        drawMap: drawMap
+        drawMap: drawMap,
+        drawOneExplosionZones: drawOneExplosionZones,
+        drawAllOverlapHighlights: drawAllOverlapHighlights,
+        drawPolygonPathFromPoints: drawPolygonPathFromPoints,
+        getZoneColors: getZoneColors,
+        ZONE_DEFS: ZONE_DEFS,
+        OVERLAY_HATCH_COLORS: OVERLAY_HATCH_COLORS
     };
 
 })(window);

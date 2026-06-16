@@ -36,7 +36,9 @@
         shelters: [],
         selectedShelterIndex: null,
         evacuationPlan: null,
-        evacuationRoads: []
+        evacuationRoads: [],
+        mapCtx: null,
+        effectCtx: null
     };
 
     function getSelectedExplosion() {
@@ -76,6 +78,9 @@
     function init() {
         const elements = window.UI.getControlElements();
         const dataElements = window.DataDisplay.getElements();
+
+        state.mapCtx = mapCtx;
+        state.effectCtx = effectCtx;
 
         window.Renderer.setupCanvas(mapCanvas, effectCanvas, mapCtx, effectCtx, mapWrapper, state);
         window.UI.setupEventListeners(elements, dataElements, state, mapCanvas, mapCtx, effectCtx, effectCanvas, mapWrapper, flashOverlay, mapHint);
